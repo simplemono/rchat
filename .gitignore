@@ -1,0 +1,9 @@
+.cpcache/
+.shadow-cljs/
+.clj-kondo/
+.lsp/
+node_modules/
+target/
+example/resources/public/js/
+example/work/
+example/.rchat/

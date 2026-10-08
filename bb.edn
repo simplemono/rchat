@@ -1,0 +1,15 @@
+;; The server tests on babashka: bb test
+{:paths ["server/test"]
+ :deps {io.github.simplemono/rchat$server {:local/root "server"}}
+ :tasks
+ {test {:doc "Runs the server tests."
+        :requires ([clojure.test :as t])
+        :task (let [namespaces '[rchat.agent-test
+                                 rchat.auth-test
+                                 rchat.feed-test
+                                 rchat.look-test
+                                 rchat.view-test]]
+                (apply require namespaces)
+                (let [{:keys [fail error]} (apply t/run-tests namespaces)]
+                  (when (pos? (+ fail error))
+                    (System/exit 1))))}}}

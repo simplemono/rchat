@@ -1,0 +1,7 @@
+;; The browser half: the composer of the chat, on the client runtime of
+;; rframes (which brings parts-cljs, Replicant and transit-cljs).
+{:paths ["src"]
+ :deps {io.github.simplemono/rframes$client
+        {:git/url "https://github.com/simplemono/rframes.git"
+         :git/sha "986826428665e0ee6d9de6affeb1dcb266b670c1"
+         :deps/root "client"}}}

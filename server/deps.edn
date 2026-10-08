@@ -1,0 +1,16 @@
+;; The server half: the agent loop (mini-swe-agent-clj) and the UI wire
+;; (rframes). Runs on babashka, which has http-kit and transit built in,
+;; and on the JVM.
+{:paths ["src" "resources"]
+ :deps {io.github.maxweber/mini-swe-agent-clj
+        {:git/url "https://github.com/maxweber/mini-swe-agent-clj.git"
+         :git/sha "8216175768580d2c3367bf83cdb6138331f07cf6"}
+        io.github.simplemono/rframes$server
+        {:git/url "https://github.com/simplemono/rframes.git"
+         :git/sha "986826428665e0ee6d9de6affeb1dcb266b670c1"
+         :deps/root "server"}}
+ :aliases
+ {:test {:extra-paths ["test"]
+         :extra-deps {io.github.cognitect-labs/test-runner
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         :main-opts ["-m" "cognitect.test-runner"]}}}

@@ -1,0 +1,14 @@
+;; A model for trying the example without an API key: the agent answers
+;; call n with step n and hands over twice.
+[{:text "Let me see what is in the folder."
+  :commands ["ls -la"]}
+ {:text "I will write a greeting."
+  :commands ["echo 'Hello from the agent' > hello.txt"
+             "cat hello.txt"]}
+ {:text "Done, handing over."
+  :commands ["mkdir -p .agent && printf 'I wrote hello.txt with a greeting. Tell me what to change.\\n' > .agent/message.md && echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; cat .agent/message.md"]}
+ {:text "Changing the greeting as you asked. This takes a moment."
+  :commands ["sleep 4"
+             "echo 'Hello again' > hello.txt"]}
+ {:text "Handing over again."
+  :commands ["echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; echo Changed the greeting, have a look at hello.txt."]}]
