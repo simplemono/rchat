@@ -20,6 +20,7 @@
   long side, uploaded, and sent along with the next message."
   (:require [clojure.string :as str]
             [cognitect.transit :as t]
+            [rchat.client.motion :as motion]
             [rframes.client.state :as state]
             [rframes.client.ui :as ui]))
 
@@ -234,4 +235,6 @@
   [{:ui.alias/kind :ui/composer
     :ui.alias/fn composer}
    {:ui.alias/kind :ui/canvas
-    :ui.alias/fn canvas}])
+    :ui.alias/fn canvas}
+   {:ui.alias/kind :ui/motion
+    :ui.alias/fn motion/motion}])

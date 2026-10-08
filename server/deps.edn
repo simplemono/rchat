@@ -10,7 +10,12 @@
          :git/sha "986826428665e0ee6d9de6affeb1dcb266b670c1"
          :deps/root "server"}
         ;; Markdown of the model's notes and handovers as hiccup.
-        io.github.nextjournal/markdown {:mvn/version "0.7.225"}}
+        io.github.nextjournal/markdown {:mvn/version "0.7.225"}
+        ;; A frame as a function of time, for the REPL agent's motion
+        ;; graphics and captions; the same code runs in the browser.
+        io.github.simplemono/fnmotion
+        {:git/url "https://github.com/simplemono/fnmotion.git"
+         :git/sha "59c7e0526d60b093f4a472a453670b7f4f939fbe"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner

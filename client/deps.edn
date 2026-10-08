@@ -1,7 +1,13 @@
-;; The browser half: the composer of the chat, on the client runtime of
-;; rframes (which brings parts-cljs, Replicant and transit-cljs).
+;; The browser half: the composer of the chat and the motion pane of the
+;; REPL agent, on the client runtime of rframes (which brings parts-cljs,
+;; Replicant and transit-cljs). The motion pane evaluates the model's
+;; definitions with SCI and plays them with fnmotion.
 {:paths ["src"]
  :deps {io.github.simplemono/rframes$client
         {:git/url "https://github.com/simplemono/rframes.git"
          :git/sha "986826428665e0ee6d9de6affeb1dcb266b670c1"
-         :deps/root "client"}}}
+         :deps/root "client"}
+        io.github.simplemono/fnmotion
+        {:git/url "https://github.com/simplemono/fnmotion.git"
+         :git/sha "59c7e0526d60b093f4a472a453670b7f4f939fbe"}
+        org.babashka/sci {:mvn/version "0.15.59"}}}

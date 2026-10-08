@@ -212,6 +212,17 @@ message are the note the user reads; the forms sit behind the tool-call
 row. `example/src/example/main.clj` is the whole wiring, and
 [example/README.md](example/README.md) says what to try.
 
+**Motion.** With `(design! assoc :duration 8)` the creation becomes a
+function of time, `(defn design-view [design t] ...)`, and the pane turns
+into a player with a scrubber. [fnmotion](https://github.com/simplemono/fnmotion)
+is at hand in the REPL as `fm`, `tl` and `captions`, and the same library
+runs in the browser: the pane evaluates the model's definitions
+(`rchat.repl/definitions`, every `def` and `defn` from the log) with SCI
+and renders every frame locally, so scrubbing and playback never touch
+the server. Design edits still go through `:design/set`, and a control
+inside a frame works like one anywhere else. The client module therefore
+carries SCI and fnmotion.
+
 The hazard is the one of any REPL: a form runs with the full authority of
 the process. For a sandbox that holds nothing but the user's own creation.
 The bash agent (`rchat.agent` with its default step) stays the choice for

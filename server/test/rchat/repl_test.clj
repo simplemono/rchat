@@ -84,6 +84,29 @@
   (is (= "A heading with a slider.\nAnd a color." (repl/note ";; A heading with a slider.\n(+ 1 2)\n; And a color.\n(done \"x\")")))
   (is (= "" (repl/note "(+ 1 2)"))))
 
+(deftest definitions-test
+  (let [log [{:type :run/started :task "x"}
+             {:type :model/responded
+              :actions [{:command "(design! assoc :title \"Hi\")"}
+                        {:command "(def pad 12)"}
+                        {:command "(defn design-view [design t] [:h1 (:title design)])"}
+                        {:command "(+ 1 2)"}]}
+             {:type :model/responded
+              :actions [{:command "(defn- helper [x] x)"}
+                        {:command "(done \"ok\")"}]}]]
+    (is (= ["(def pad 12)"
+            "(defn design-view [design t] [:h1 (:title design)])"
+            "(defn- helper [x] x)"]
+           (repl/definitions log)))))
+
+(deftest install-aliases-test
+  (repl/install! {})
+  (testing "the model can use fnmotion under its aliases"
+    (is (= 50.0 (binding [*ns* (the-ns 'user)]
+                  (eval '(fm/interpolate 1.5 [1 2] [0 100])))))
+    (is (= [:p "x"] (binding [*ns* (the-ns 'user)]
+                      (eval '(tl/at (tl/still 2 [:p "x"]) 1)))))))
+
 (deftest render-result-test
   (is (= "$1 => 3\n" (repl/render-result 1 {:value 3 :out ""})))
   (is (= "hi\n$2 => nil\n" (repl/render-result 2 {:value nil :out "hi\n"})))

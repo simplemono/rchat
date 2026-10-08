@@ -62,11 +62,20 @@
               (:design (swap! db (fn [db]
                                    (update db :design #(apply f % args))))))})
 
+(def aliases
+  "The libraries the model has at hand under short aliases, in `user` here
+  and in the browser when its definitions run there."
+  '[[fnmotion.core :as fm]
+    [fnmotion.timeline :as tl]
+    [fnmotion.captions :as captions]])
+
 (defn install!
-  "Puts the REPL vocabulary into the `user` namespace: `sh`, `done` and
-  whatever the app adds in `bindings`, e.g. the db atom and
+  "Puts the REPL vocabulary into the `user` namespace: `sh`, `done`, the
+  `aliases` and whatever the app adds in `bindings`, e.g. the db atom and
   `design-helpers`."
   [bindings]
+  (binding [*ns* (the-ns 'user)]
+    (eval (list* 'require (map #(list 'quote %) aliases))))
   (doseq [[sym value] (merge {'sh sh
                               'done done}
                              bindings)]
@@ -275,6 +284,21 @@
     :execute (evaluate effects log)
     :submit (submit effects log)
     :done log))
+
+(def ^:private definition-re
+  #"^\((def|defn|defn-|defonce|defmacro|defmulti|defmethod)\s")
+
+(defn definitions
+  "The forms the model evaluated that define something, in order: the
+  program that rebuilds its definitions somewhere else, e.g. in the
+  browser, where the frame of a motion design is rendered."
+  [log]
+  (->> log
+       (filter #(= :model/responded (:type %)))
+       (mapcat :actions)
+       (map :command)
+       (filter #(re-find definition-re (str %)))
+       (vec)))
 
 (defn source-of
   "The latest definition of `name` the model evaluated, as text, or nil:

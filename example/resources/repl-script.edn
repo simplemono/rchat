@@ -24,4 +24,22 @@
   [:div
    (card-view design)
    [:button {:style {:margin-top \"12px\"} :on {:click [[:data/command {:command/kind :design/shuffle}]]}} \"Shuffle the color\"]])"
- "(done \"There is a button now that picks another color each time you press it.\")"]
+ "(done \"There is a button now that picks another color each time you press it.\")"
+ ";; Turning the card into a six-second clip with captions; the slider and the color picker stay.
+(design! assoc :duration 6 :words [{:start 0.5 :end 0.9 :text \"Guests\"} {:start 0.9 :end 1.3 :text \"love\"} {:start 1.3 :end 1.5 :text \"it\"} {:start 1.5 :end 1.9 :text \"here.\"} {:start 2.6 :end 3.0 :text \"Come\"} {:start 3.0 :end 3.4 :text \"and\"} {:start 3.4 :end 3.9 :text \"see.\"}])
+(defn design-view [{:keys [title color size words]} t]
+  (let [enter (fm/spring (fm/progress t 0 1.2))
+        blocks (captions/captions {:words words} {:max-chars 16})
+        block (captions/at blocks t)
+        word (captions/word-at words t)]
+    [:div
+     [:div {:style {:position \"relative\" :height \"360px\" :display \"flex\" :flex-direction \"column\" :align-items \"center\" :justify-content \"center\" :gap \"16px\" :background \"#fff7ed\" :border-radius \"12px\" :overflow \"hidden\"}}
+      [:h1 {:style {:margin 0 :font-size (fm/px size) :color color :opacity (fm/progress t 0 0.4)
+                    :transform (str \"translateY(\" (fm/px (fm/lerp 60 0 enter)) \")\")}} title]
+      [:p {:style {:min-height \"1.5em\" :margin 0 :font-weight 700 :color \"#431407\"}}
+       (for [w (:words block)] [:span {:style {:color (when (= w word) color)}} (:text w) \" \"])]
+      [:div {:style {:position \"absolute\" :left 0 :bottom 0 :height \"6px\" :width (fm/pct (/ t 6)) :background color}}]]
+     [:div {:style {:margin-top \"16px\"}}
+      [:label \"Size \" [:input {:type \"range\" :min 16 :max 64 :value size :on (setter [:size])}]]
+      [:label \"Color \" [:input {:type \"color\" :value color :on (setter [:color])}]]]]))"
+ "(done \"Your card is a six-second clip now: press play or drag the scrubber, every moment is right there. The size slider and the color picker still work while it plays.\")"]

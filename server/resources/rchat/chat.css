@@ -170,6 +170,50 @@ body {
   margin-top: 8px;
 }
 
+/* The motion pane of the REPL agent: the frame the browser renders from
+   the model's definitions, with fnmotion's player under it. */
+.rchat .motion-root,
+.rchat .motion {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+
+.rchat .motion-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font: 16px/1.5 system-ui, sans-serif;
+}
+
+.rchat .motion-frame input,
+.rchat .motion-frame select,
+.rchat .motion-frame button {
+  font: inherit;
+}
+
+.rchat .fnmotion-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rchat .fnmotion-controls input {
+  flex: 1;
+}
+
+.rchat .fnmotion-time {
+  color: var(--rchat-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 .rchat .canvas-placeholder {
   display: flex;
   flex: 1;

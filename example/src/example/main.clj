@@ -11,6 +11,7 @@
   model."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.walk :as walk]
             [org.httpkit.server :as server]
             [rchat.agent :as agent]
@@ -101,18 +102,32 @@
   (some-> (ns-resolve 'user 'design-view) deref))
 
 (defn design-pane
+  "The creation: a motion design (the design has a :duration) is rendered
+  by the browser from the model's definitions and played there; anything
+  else is rendered here from `design-view`."
   [db]
   (let [view-fn (design-view)
+        {:keys [duration] :as design} (:design db)
         source (repl/source-of (:agent/log db) "design-view")]
     [:div.canvas-pane
      [:div.canvas-bar
-      [:span.label "Your creation"]]
-     (if view-fn
+      [:span.label "Your creation"]
+      (when (and view-fn duration)
+        [:span.hint (str duration " s")])]
+     (cond
+       (and view-fn duration)
+       [:ui/motion {:ui/source (str/join "\n" (repl/definitions (:agent/log db)))
+                    :ui/design design
+                    :ui/duration duration}]
+
+       view-fn
        [:div.design
         (try
-          (data-only (view-fn (:design db)))
+          (data-only (view-fn design))
           (catch Exception e
             [:p.error (str "The view failed: " (ex-message e))]))]
+
+       :else
        [:div.canvas-placeholder
         "Your creation will appear here, with controls to play with it."])
      (when source
@@ -157,7 +172,10 @@
   (.mkdirs (io/file work-dir))
   (repl/install! (merge (repl/design-helpers db)
                         {'db db
-                         'set-command! set-command!}))
+                         'set-command! set-command!
+                         'frame-at (fn [t]
+                                     (when-let [view-fn (design-view)]
+                                       (view-fn (:design @db) t)))}))
   (agent/load! runner)
   (sse/watch! db)
   (let [port (parse-long (or (System/getenv "PORT") "8080"))
