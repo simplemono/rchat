@@ -92,3 +92,10 @@
                        :replicant/on-unmount (fn [_]
                                                (player/pause! (:player @state*))
                                                (swap! state* dissoc :node))}]))
+
+(def register
+  "The `:ui/motion` alias, for an app that plays motion designs in the
+  browser (RCHAT_MOTION=browser in the example). Concat it with
+  `rchat.client/register`."
+  [{:ui.alias/kind :ui/motion
+    :ui.alias/fn motion}])

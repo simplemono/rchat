@@ -215,20 +215,20 @@ row. `example/src/example/main.clj` is the whole wiring, and
 **Motion.** With `(design! assoc :duration 8)` the creation becomes a
 function of time, `(defn design-view [design t] ...)`, and the pane turns
 into a player with a scrubber. [fnmotion](https://github.com/simplemono/fnmotion)
-is at hand in the REPL as `fm`, `tl` and `captions`, and the same library
-runs in the browser: the pane evaluates the model's definitions
-(`rchat.repl/definitions`, every `def` and `defn` from the log) with SCI
-and renders every frame locally, so scrubbing and playback never touch
-the server. Design edits still go through `:design/set`, and a control
-inside a frame works like one anywhere else. The client module therefore
-carries SCI and fnmotion.
+is at hand in the REPL as `fm`, `tl` and `captions`. By default the
+frames are rendered on the server: `t` lives in the app atom, a tick
+pushes a page frame per step past rframes' coalescing, scrubber and play
+are commands, and the browser carries nothing for it. Design edits go
+through `:design/set` as always, and a control inside a frame works like
+one anywhere else.
 
-**Server-side motion, measured.** `RCHAT_MOTION=server` is the other way
-to play a motion design: `t` lives in the app atom, a server tick pushes
-a page frame per step past rframes' coalescing, scrubber and play are
-commands, and the browser carries neither SCI nor fnmotion. Measured on
-2026-10-08 on one laptop with the scripted six-second clip
-(`RCHAT_MOTION=server bb -m example.bench` for the first two lines):
+`RCHAT_MOTION=browser` is the other way: the pane evaluates the model's
+definitions (`rchat.repl/definitions`, every `def` and `defn` from the
+log) with SCI in the browser and renders every frame locally, so
+scrubbing and playback never touch the server and audio can be in sync.
+It needs `rchat.client.motion/register` in the bundle, which brings SCI
+and fnmotion (0.8 MB). Measured on 2026-10-08 on one laptop with the
+scripted six-second clip (`bb -m example.bench` for the first two lines):
 
 | | server-side | in the browser |
 |---|---|---|
@@ -240,8 +240,8 @@ commands, and the browser carries neither SCI nor fnmotion. Measured on
 | audio in sync with the frame | no | yes |
 | server cost while someone watches | one tick loop per viewer | none |
 
-The push side is cheap; the round trip and audio are what keep the
-browser mode the default.
+The push side is cheap enough for the server mode to be the default; the
+browser mode is there for the round trip and for audio.
 
 The hazard is the one of any REPL: a form runs with the full authority of
 the process. For a sandbox that holds nothing but the user's own creation.

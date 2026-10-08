@@ -20,7 +20,6 @@
   long side, uploaded, and sent along with the next message."
   (:require [clojure.string :as str]
             [cognitect.transit :as t]
-            [rchat.client.motion :as motion]
             [rframes.client.state :as state]
             [rframes.client.ui :as ui]))
 
@@ -232,9 +231,10 @@
                                              (reset! canvas-src* nil))}]))
 
 (def register
+  "The composer and the canvas. The motion pane of the browser mode, which
+  brings SCI and fnmotion into the bundle, is `rchat.client.motion/register`
+  for the apps that want it."
   [{:ui.alias/kind :ui/composer
     :ui.alias/fn composer}
    {:ui.alias/kind :ui/canvas
-    :ui.alias/fn canvas}
-   {:ui.alias/kind :ui/motion
-    :ui.alias/fn motion/motion}])
+    :ui.alias/fn canvas}])

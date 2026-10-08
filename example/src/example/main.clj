@@ -72,11 +72,12 @@
   (agent/api-key-missing? runner))
 
 (def motion-mode
-  "How a motion design is played. `:browser`: the frame function runs in
-  the browser, 60 frames a second locally. `:server`: every frame is
-  rendered here and pushed as a page frame, an experiment to measure
-  (RCHAT_MOTION=server)."
-  (keyword (or (System/getenv "RCHAT_MOTION") "browser")))
+  "How a motion design is played. `:server`, the default: every frame is
+  rendered here and pushed as a page frame, the browser carries nothing
+  for it. `:browser` (RCHAT_MOTION=browser): the frame function runs in
+  the browser with SCI, for scrubbing without a round trip and audio in
+  sync."
+  (keyword (or (System/getenv "RCHAT_MOTION") "server")))
 
 ;;; The design: its data, its command, its view
 
