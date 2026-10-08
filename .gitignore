@@ -7,3 +7,4 @@ target/
 example/resources/public/js/
 example/work/
 example/.rchat/
+.env

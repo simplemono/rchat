@@ -228,7 +228,7 @@ log) with SCI in the browser and renders every frame locally, so
 scrubbing and playback never touch the server and audio can be in sync.
 It needs `rchat.client.motion/register` in the bundle, which brings SCI
 and fnmotion (0.8 MB). Measured on 2026-10-08 on one laptop with the
-scripted six-second clip (`bb -m example.bench` for the first two lines):
+scripted six-second clip (`bb bench` for the first two lines):
 
 | | server-side | in the browser |
 |---|---|---|
@@ -267,11 +267,10 @@ Without an API key a script plays the model. See
 
 ```bash
 cd example
-clojure -M -m shadow.cljs.devtools.cli release browser   # the bundle, needs a JVM
-bb -m example.main                                       # http://localhost:8080, the REPL agent
-bb -m example.bash                                       # the bash agent with the canvas
-OPENROUTER_API_KEY=... bb -m example.main                 # GPT-6.1 Sol, RCHAT_MODEL picks another
-RCHAT_TOKEN=s3cret bb -m example.main                    # prints the link
+bb start                             # http://localhost:8080, the REPL agent; compiles the bundle first when needed (JVM)
+bb bash                              # the bash agent with the canvas
+OPENROUTER_API_KEY=... bb start      # GPT-6.1 Sol, RCHAT_MODEL picks another; a .env in example/ works too
+RCHAT_TOKEN=s3cret bb start          # prints the link
 ```
 
 ## Tests

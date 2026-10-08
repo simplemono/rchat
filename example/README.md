@@ -1,23 +1,26 @@
 # The example
 
-Two agents, one chat page. Build the browser bundle once (needs a JVM),
-then start either:
+Two agents, one chat page. `bb start` compiles the browser bundle when it
+is missing or older than the sources (that step needs a JVM and the
+clojure CLI), reads a `.env` beside it, and starts the REPL agent:
 
 ```bash
-clojure -M -m shadow.cljs.devtools.cli release browser
-bb -m example.main     # the REPL agent: the creation lives in the app, controls to play with it
-bb -m example.bash     # the bash agent: works in ./work, its page in ./work/canvas beside the chat
+bb start    # the REPL agent: the creation lives in the app, controls to play with it
+bb bash     # the bash agent: works in ./work, its page in ./work/canvas beside the chat
+bb build    # only the bundle
+bb bench    # what a server-pushed frame costs
 ```
 
 Open http://localhost:8080. Without an API key a script plays the model
 (`resources/repl-script.edn`, `resources/script.edn`): type anything, press
 Enter, and watch.
 
-With the real model, GPT-6.1 Sol through OpenRouter:
+With the real model, GPT-6.1 Sol through OpenRouter, put the key into
+`example/.env` (ignored by git) or export it:
 
 ```bash
-export OPENROUTER_API_KEY=...          # or put it into a .env and `set -a; . .env; set +a`
-RCHAT_WORK=/tmp/rchat-try bb -m example.main
+echo 'OPENROUTER_API_KEY=...' > .env
+RCHAT_WORK=/tmp/rchat-try bb start
 ```
 
 | Variable | Meaning |
@@ -26,6 +29,7 @@ RCHAT_WORK=/tmp/rchat-try bb -m example.main
 | `RCHAT_MODEL` | `provider/id`, default `openrouter/openai/gpt-6.1-sol` |
 | `RCHAT_WORK` | the agent's directory, default `./work`; the log in `.agent/` resumes the conversation on the next start |
 | `RCHAT_TOKEN` | a secret: the server prints the link that sets the cookie, nobody else gets in |
+| `RCHAT_MOTION` | `server` (default) renders the motion pane on the server, `browser` plays it in the browser with SCI |
 | `PORT` | default 8080 |
 
 ## What to type to the REPL agent
@@ -71,5 +75,5 @@ chat whenever the agent changes it.
 
 ## Stopping
 
-Ctrl-C stops the server; the next start resumes the conversation from the
-log. A stuck one: `fuser -k 8080/tcp`.
+Ctrl-C stops the server; the next `bb start` resumes the conversation from
+the log. A stuck one: `fuser -k 8080/tcp`.

@@ -1,3 +1,77 @@
-;; bb -m example.main (the REPL agent), bb -m example.bash (the bash agent)
+;; bb start   the REPL agent (default), bundle compiled first if needed
+;; bb bash    the bash agent with the canvas
+;; bb build   compile the browser bundle (needs a JVM)
+;; bb bench   what a server-pushed frame costs
+;;
+;; This file is EDN: no #(...) and no #"..." in here.
 {:paths ["src" "resources"]
- :deps {io.github.simplemono/rchat$server {:local/root "../server"}}}
+ :deps {io.github.simplemono/rchat$server {:local/root "../server"}}
+ :tasks
+ {:requires ([babashka.fs :as fs]
+             [babashka.process :refer [shell]]
+             [clojure.string :as str])
+
+  :init
+  (do
+    (def bundle "resources/public/js/main.js")
+
+    (defn mtime
+      [path]
+      (fs/file-time->millis (fs/last-modified-time path)))
+
+    (defn newest-source-mtime
+      "The newest modification time among what ends up in the bundle: the
+      sources here and in the client module, and the deps."
+      []
+      (->> (concat (fs/glob "src" "**.cljs")
+                   (fs/glob "../client/src" "**.cljs")
+                   ["deps.edn" "../client/deps.edn" "shadow-cljs.edn"])
+           (filter fs/exists?)
+           (map mtime)
+           (reduce max 0)))
+
+    (defn stale?
+      []
+      (or (not (fs/exists? bundle))
+          (< (mtime bundle) (newest-source-mtime))))
+
+    (defn env-file
+      "KEY=VALUE lines of .env here or in the repository root, quotes
+      stripped, as the environment of the server. Values are not printed."
+      []
+      (into {}
+            (for [file [".env" "../.env"]
+                  :when (fs/exists? file)
+                  line (str/split-lines (slurp file))
+                  :let [line (str/trim (str/replace line (re-pattern "^export\\s+") ""))]
+                  :when (and (seq line)
+                             (not (str/starts-with? line "#"))
+                             (str/includes? line "="))
+                  :let [[k v] (str/split line (re-pattern "=") 2)]]
+              [(str/trim k) (str/replace (str/trim v) (re-pattern "^[\"']|[\"']$") "")])))
+
+    (defn serve
+      [main-ns]
+      (when (stale?)
+        (println "The bundle is missing or older than the sources, compiling it first.")
+        (run 'build))
+      (let [env (env-file)]
+        (when (seq env)
+          (println (str "Read " (str/join ", " (keys env)) " from .env.")))
+        (shell {:extra-env env} "bb" "-m" main-ns))))
+
+  build
+  {:doc "Compiles the browser bundle (needs a JVM and the clojure CLI)."
+   :task (shell "clojure -M -m shadow.cljs.devtools.cli release browser")}
+
+  start
+  {:doc "The REPL agent at http://localhost:8080. Compiles the bundle first when it is missing or stale, reads .env."
+   :task (serve "example.main")}
+
+  bash
+  {:doc "The bash agent with the canvas at http://localhost:8080."
+   :task (serve "example.bash")}
+
+  bench
+  {:doc "Renders the scripted clip 600 times the way the server pushes it and prints the cost per frame."
+   :task (shell {:extra-env {"RCHAT_MOTION" "server"}} "bb" "-m" "example.bench")}}}
