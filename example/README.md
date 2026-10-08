@@ -64,6 +64,46 @@ Behind "Tool call" is what the model wrote and what the REPL answered;
 If something breaks, paste the error back into the chat as it is: the
 model sees the same REPL output.
 
+## What to type for motion
+
+The same agent, the same card, one more dimension: time. As soon as the
+design has a `:duration` and the view takes a time, the pane becomes a
+player with a scrubber. Under the hood it is
+[fnmotion](https://github.com/simplemono/fnmotion): a frame is a pure
+function of the design and the time in seconds, nothing is pre-rendered.
+Without an API key the script gets there on the third message.
+
+First message, after the card above or on its own:
+
+> Turn the card into a six-second clip for a story: the hotel name
+> springs in, then "Guests love it here. Come and see." appears word by
+> word as if spoken, with the spoken word in the accent color, and a thin
+> bar at the bottom shows how far we are. Keep the controls.
+
+Rounds that show what the player can do:
+
+- "Make it ten seconds and let the title stay longer." — the length lives in the design, the scrubber follows at once
+- "Slower entrance, more bounce." — the spring and the easings of `fm`
+- "Make the bounce a slider." — a control for a motion value; drag it while the clip plays
+- "After the quote, a closing card with the hotel name and 'Book now', held for two seconds." — scenes one after the other with `tl/sequence`
+- "Here are the real word timings: …" paste a transcript with `{:start :end :text}` per word, or dictate it: "the words start at 0.5 s, about 0.4 s each, a pause before 'Come'"
+- "At most two words per line." — the caption blocks, `captions/captions` with `:max-chars`
+- "Make the highlighted word jump a little."
+- "Play it twice." — `tl/repeat`
+- "Story size, 1080 by 1920."
+- "Show me the frame at 2.5 seconds." — the model looks with `(frame-at 2.5)` at the REPL and answers from it
+
+Things to watch:
+
+- Drag the scrubber back and forth: every position is the same function, called with another `t`. There is no cache to miss and no frame that looks different from its neighbours.
+- Change a color or the size while it plays. A control in a frame works like a control in a still card.
+- Does the model keep `design-view` a function of the design and `t` only? If it reaches for `db` or `sh` inside the frame, say "keep it a pure function of the design and the time": the same function has to render the frames in the final video.
+- Does a new duration or a new scene order break the frames that worked before? Scrub through the whole clip after every round.
+
+By default the server renders every frame and pushes the diff
+(`RCHAT_MOTION=server`); `RCHAT_MOTION=browser` evaluates the same
+definitions in the browser instead. What you type is the same in both.
+
 ## What to type to the bash agent
 
 > Build an HTML page with a review card for a small hotel: headline, five
