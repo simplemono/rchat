@@ -8,6 +8,10 @@ Each command runs in a fresh shell in {{cwd}} and is stopped after {{timeout_min
 
 Keep the user in the loop: get something they can react to in front of them early, then improve it.
 
+## Showing your work
+
+The user sees {{canvas_dir}}/index.html next to this chat, and it reloads whenever you change a file in that folder. Put anything visual there as early as possible and improve it while they watch: a layout, a page, a preview. Plain HTML and CSS, with images and other files next to it and relative paths.
+
 ## Handing over
 
 When you have done what you can do without their input, hand over:

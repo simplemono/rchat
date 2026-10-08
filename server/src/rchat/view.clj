@@ -19,7 +19,8 @@
        :placeholder    of the composer
        :max-items      newest items of the feed that are shown (60)
        :show-task?     whether the first message, the task, is shown (true)
-       :card           hiccup the page shows above the feed (optional)
+       :card           hiccup the page shows beside the chat, e.g.
+                       `rchat.canvas/view` (optional)
        :key-missing?   true shows that the model's API key is not set}"
   (:require [clojure.string :as str]
             [minisweagent.log :as log]
@@ -194,15 +195,18 @@
         "Continue"])]))
 
 (defn page
+  "The page: the header, the chat (feed and composer) and, when the app
+  passes `:card`, that hiccup beside the chat, like an artifact pane."
   [db opts]
   (let [{:keys [card]} (merge defaults opts)]
-    [:div.rchat
+    [:div.rchat {:class (when card "with-card")}
      (header db opts)
-     [:main
+     [:div.body
+      [:div.chat
+       (feed db opts)
+       (composer db opts)]
       (when card
-        [:section.card card])
-      (feed db opts)]
-     (composer db opts)]))
+        [:section.card card])]]))
 
 (comment
   (page {:agent/log [] :agent/status :idle} {:title "example"})

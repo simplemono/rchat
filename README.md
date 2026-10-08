@@ -164,6 +164,35 @@ as hiccup (`rchat.markdown`): raw HTML in them stays text and an image
 becomes a link, so the model never puts markup or a URL to load on the
 page. The user's text is shown as typed.
 
+## The canvas
+
+The creation of the agent beside the chat, like an artifact pane. By
+convention the agent writes `<cwd>/canvas/index.html` (the default prompt
+says so, `{{canvas_dir}}` in a template of your own), and `rchat.canvas`
+serves that directory and shows the page in an iframe:
+
+```clojure
+(def canvas
+  (rchat.canvas/canvas {:db db
+                        :dir "/work/canvas"}))
+
+;; the runner reloads it after every step and at every handover
+(rchat.agent/runner {... :after-step (fn [_ _] (rchat.canvas/refresh! canvas))
+                         :on-wait (fn [_] (rchat.canvas/refresh! canvas))})
+
+;; the routes next to the chat's, the pane as the page's card
+(concat (rchat.agent/register runner) (rchat.canvas/register canvas))
+(rchat.view/page @db {:card (rchat.canvas/view @db canvas {})})
+```
+
+`refresh!` compares the newest modification time of the directory with
+the one in the db; a change bumps `:canvas/rev`, the frame carries a new
+`src` and only the iframe reloads, at the scroll position the user had.
+Dot paths are never served. `:prepare` is a function over every HTML file
+served, for an app that injects a runtime, as video-agent does for
+HyperFrames. A HyperFrames composition with its player is the same idea
+with video-agent's `:ui/player` alias instead of the iframe.
+
 ## Images
 
 The agent's environment provides a command that stores an image under

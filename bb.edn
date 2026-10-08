@@ -6,6 +6,7 @@
         :requires ([clojure.test :as t])
         :task (let [namespaces '[rchat.agent-test
                                  rchat.auth-test
+                                 rchat.canvas-test
                                  rchat.feed-test
                                  rchat.look-test
                                  rchat.markdown-test

@@ -313,6 +313,9 @@
          {:cwd (or (not-empty (get-in config [:environment :cwd]))
                    (System/getProperty "user.dir"))
           :agent_dir (str dir)
+          :canvas_dir (str (io/file (or (not-empty (get-in config [:environment :cwd]))
+                                        (System/getProperty "user.dir"))
+                                    "canvas"))
           :timeout_minutes (max 1 (quot (get-in config [:environment :timeout-seconds] 30) 60))}))
 
 (defn- startable?

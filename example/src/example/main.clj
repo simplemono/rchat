@@ -5,6 +5,7 @@
             [org.httpkit.server :as server]
             [rchat.agent :as agent]
             [rchat.auth :as auth]
+            [rchat.canvas :as canvas]
             [rchat.view :as view]
             [rframes.command :as command]
             [rframes.http :as http]
@@ -37,21 +38,31 @@
       (when-not api-key?
         (io/resource "script.edn"))))
 
+(defonce canvas
+  (canvas/canvas {:db db
+                  :dir (io/file work-dir "canvas")}))
+
 (defonce runner
   (agent/runner {:db db
                  :dir (io/file work-dir ".agent")
                  :scripted scripted
                  :config-fn #(agent/config {:model model
                                             :cwd work-dir
-                                            :cost-limit 5.0})}))
+                                            :cost-limit 5.0})
+                 :after-step (fn [_runner _log]
+                               (canvas/refresh! canvas))
+                 :on-wait (fn [_runner]
+                            (canvas/refresh! canvas))}))
 
 (def key-missing?
   (agent/api-key-missing? runner))
 
 (defn page-view
   [_w]
-  (view/page @db {:title "rchat"
-                  :key-missing? key-missing?}))
+  (let [db @db]
+    (view/page db {:title "rchat"
+                   :key-missing? key-missing?
+                   :card (canvas/view db canvas {})})))
 
 (def head
   (str "<title>rchat</title>"
@@ -71,11 +82,13 @@
   []
   (replicant/expand (concat register
                             command/register
-                            (agent/register runner))))
+                            (agent/register runner)
+                            (canvas/register canvas))))
 
 (defn -main
   [& _args]
   (.mkdirs (io/file work-dir))
+  (canvas/refresh! canvas)
   (agent/load! runner)
   (sse/watch! db)
   (let [port (parse-long (or (System/getenv "PORT") "8080"))

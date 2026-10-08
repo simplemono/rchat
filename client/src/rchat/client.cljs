@@ -182,6 +182,56 @@
                                       (send!))}}
        (or send-label "Send")]]]))
 
+(defonce ^:private canvas-node*
+  (atom nil))
+
+(defonce ^:private canvas-src*
+  (atom nil))
+
+(defonce ^:private canvas-scroll*
+  (atom nil))
+
+(defn- canvas-scroll
+  "The scroll position of the page in the iframe, same origin."
+  []
+  (try
+    (when-let [^js node @canvas-node*]
+      (let [^js win (.-contentWindow node)]
+        [(.-scrollX win) (.-scrollY win)]))
+    (catch :default _
+      nil)))
+
+(defn- restore-canvas-scroll!
+  [_event]
+  (when-let [[x y] @canvas-scroll*]
+    (reset! canvas-scroll* nil)
+    (try
+      (when-let [^js node @canvas-node*]
+        (.scrollTo (.-contentWindow node) x y))
+      (catch :default _
+        nil))))
+
+(defn canvas
+  "The creation of the agent: an iframe over the page the server names.
+  A new `:ui/rev` changes the src and reloads the page at the position the
+  user was looking at; everything else Replicant leaves alone."
+  [{:keys [ui/src ui/rev]} _children]
+  (let [src (str src "?rev=" rev)]
+    (when (and @canvas-src* (not= src @canvas-src*))
+      (reset! canvas-scroll* (canvas-scroll)))
+    (reset! canvas-src* src)
+    [:iframe.canvas {:replicant/key "canvas"
+                     :src src
+                     :title "Your creation"
+                     :replicant/on-mount (fn [{:keys [replicant/node]}]
+                                           (reset! canvas-node* node)
+                                           (.addEventListener ^js node "load" restore-canvas-scroll!))
+                     :replicant/on-unmount (fn [_]
+                                             (reset! canvas-node* nil)
+                                             (reset! canvas-src* nil))}]))
+
 (def register
   [{:ui.alias/kind :ui/composer
-    :ui.alias/fn composer}])
+    :ui.alias/fn composer}
+   {:ui.alias/kind :ui/canvas
+    :ui.alias/fn canvas}])

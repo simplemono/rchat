@@ -82,6 +82,20 @@
         (is (some #(and (= :pre.command (first %)) (= "look a.png" (last %))) (nodes details)))
         (is (some #(= :div.output (first %)) (nodes details)))))))
 
+(deftest layout-test
+  (let [db {:agent/log []
+            :agent/status :idle}
+        tags (fn [view] (set (map first (nodes view))))]
+    (testing "without a card: the chat alone"
+      (let [view (view/page db {})]
+        (is (contains? (tags view) :div.chat))
+        (is (not (contains? (tags view) :section.card)))
+        (is (= [:div.rchat {:class nil}] (subvec view 0 2)))))
+    (testing "with a card: the chat and the card side by side"
+      (let [view (view/page db {:card [:p "a pane"]})]
+        (is (contains? (tags view) :section.card))
+        (is (= [:div.rchat {:class "with-card"}] (subvec view 0 2)))))))
+
 (deftest show-task-test
   (let [db {:agent/log feed-test/log
             :agent/status :waiting}

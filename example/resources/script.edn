@@ -1,14 +1,23 @@
 ;; A model for trying the example without an API key: the agent answers
-;; call n with step n and hands over twice.
+;; call n with step n, shows a page on the canvas and hands over twice.
 [{:text "Let me see what is in the folder."
   :commands ["ls -la"]}
- {:text "I will write a greeting."
-  :commands ["echo 'Hello from the agent' > hello.txt"
-             "cat hello.txt"]}
+ {:text "I will put a first version of the page on your canvas."
+  :commands ["mkdir -p canvas && cat > canvas/index.html <<'HTML'
+<!DOCTYPE html>
+<html><head><meta charset=\"UTF-8\"><style>
+body { margin: 0; font: 18px/1.5 system-ui, sans-serif; background: #fff7ed; color: #431407; }
+.card { max-width: 420px; margin: 48px auto; padding: 32px; border-radius: 16px; background: #fff; box-shadow: 0 8px 30px rgba(67, 20, 7, .15); }
+h1 { margin: 0 0 8px; font-size: 28px; }
+.stars { color: #f59e0b; letter-spacing: 2px; }
+</style></head>
+<body><div class=\"card\"><h1>Guest Review</h1><p class=\"stars\">&#9733;&#9733;&#9733;&#9733;&#9733;</p><p>\"I loved staying here! Definitely 10/10.\"</p><p><small>Maria, September 2026</small></p></div></body></html>
+HTML
+echo written"]}
  {:text "Done, handing over."
-  :commands ["mkdir -p .agent && printf 'I wrote **hello.txt** with a greeting.\\n\\n- Open it with `cat hello.txt`\\n- Tell me what to change\\n' > .agent/message.md && echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; cat .agent/message.md"]}
- {:text "Changing the greeting as you asked. This takes a moment."
-  :commands ["sleep 4"
-             "echo 'Hello again' > hello.txt"]}
+  :commands ["mkdir -p .agent && printf 'A first version of the review card is on your canvas.\n\n- The **headline**, the stars and the quote are placeholders\n- Tell me what to change, or send a screenshot of what it should look like\n' > .agent/message.md && echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; cat .agent/message.md"]}
+ {:text "Changing the card as you asked. This takes a moment."
+  :commands ["sleep 3"
+             "sed -i 's/Guest Review/What our guests say/; s/#fff7ed/#ecfeff/; s/#431407/#164e63/' canvas/index.html && echo changed"]}
  {:text "Handing over again."
-  :commands ["echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; echo Changed the greeting, have a look at hello.txt."]}]
+  :commands ["echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; echo The card now has the new headline and a cooler palette, see the canvas."]}]

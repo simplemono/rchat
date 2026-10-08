@@ -70,6 +70,10 @@
         (is (= "Say hello." (log/task log)))
         (is (= [:user :step :result :step :handover] (map :kind (feed/items log))))
         (is (= "hello\n" (:output (first (:outputs (first (filter #(= :actions/observed (:type %)) log)))))))))
+    (testing "the prompt names the canvas and has no placeholder left"
+      (let [prompt (get-in (:agent/log @db) [2 :message :content])]
+        (is (re-find #"canvas/index\.html" prompt))
+        (is (not (re-find #"\{\{" prompt)))))
     (testing "the log is saved after every step"
       (is (= (:agent/log @db) (edn/read-string (slurp (:log-file runner))))))
     (testing "the answer is the next task, a message while it works waits for the next step"
