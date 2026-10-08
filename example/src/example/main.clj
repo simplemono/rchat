@@ -1,11 +1,22 @@
 (ns example.main
-  "A chat with an agent that works in ./work. Without an API key, the
-  script in script.edn stands in for the model."
-  (:require [clojure.java.io :as io]
+  "The REPL agent, the default example: the creation lives in this process. The model defines
+  `user/design-view`, a function of the design data to hiccup, which the
+  page renders beside the chat; it keeps the data under [:design] of the
+  one app atom; and the controls it puts into the view send `:design/set`,
+  so the user plays with the creation and sees every change at once.
+
+      bb -m example.main
+
+  Without an API key, the texts in resources/repl-script.edn play the
+  model."
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.walk :as walk]
             [org.httpkit.server :as server]
             [rchat.agent :as agent]
             [rchat.auth :as auth]
-            [rchat.canvas :as canvas]
+            [rchat.repl :as repl]
+            [rchat.scripted :as scripted]
             [rchat.view :as view]
             [rframes.command :as command]
             [rframes.http :as http]
@@ -13,6 +24,10 @@
             [rframes.sse :as sse]))
 
 (defonce db
+  (atom {:design {}}))
+
+;; Commands the model adds with `set-command!`: kind -> fn of the world.
+(defonce commands
   (atom {}))
 
 (def work-dir
@@ -24,8 +39,6 @@
                (System/getenv "ANTHROPIC_API_KEY"))))
 
 (def model
-  "provider/id as in mini-swe-agent-clj. RCHAT_MODEL overrides the default,
-  GPT-6.1 Sol through OpenRouter."
   (or (System/getenv "RCHAT_MODEL")
       (if (and (System/getenv "ANTHROPIC_API_KEY")
                (not (System/getenv "OPENROUTER_API_KEY")))
@@ -33,37 +46,86 @@
         agent/default-model)))
 
 (def scripted
-  "The script that plays the model: the file RCHAT_SCRIPT names, or
-  resources/script.edn when there is no API key."
-  (or (System/getenv "RCHAT_SCRIPT")
-      (when-not api-key?
-        (io/resource "script.edn"))))
+  (when-not api-key?
+    (edn/read-string (slurp (io/resource "repl-script.edn")))))
 
-(defonce canvas
-  (canvas/canvas {:db db
-                  :dir (io/file work-dir "canvas")}))
+(defn set-command!
+  "Adds a command the UI can send: `(set-command! :design/shuffle (fn [w] ... w))`."
+  [kind f]
+  (swap! commands assoc kind f)
+  kind)
 
 (defonce runner
-  (agent/runner {:db db
-                 :dir (io/file work-dir ".agent")
-                 :scripted scripted
-                 :config-fn #(agent/config {:model model
-                                            :cwd work-dir
-                                            :cost-limit 5.0})
-                 :after-step (fn [_runner _log]
-                               (canvas/refresh! canvas))
-                 :on-wait (fn [_runner]
-                            (canvas/refresh! canvas))}))
+  (agent/runner (cond-> {:db db
+                         :dir (io/file work-dir ".agent")
+                         :step repl/step
+                         :config-fn #(agent/config {:model model
+                                                    :cwd work-dir
+                                                    :cost-limit 5.0
+                                                    :text-based? true
+                                                    :system-template (slurp (io/resource "rchat/prompts/repl-system.md"))
+                                                    :instance-template (slurp (io/resource "rchat/prompts/repl-task.md"))})}
+                  scripted (assoc :model/query (scripted/text-query-fn scripted)))))
 
 (def key-missing?
   (agent/api-key-missing? runner))
 
+;;; The design: its data, its command, its view
+
+(defn- coerce
+  "A slider or a number field sends text; a number stays a number."
+  [current value]
+  (if (and (number? current) (string? value))
+    (or (parse-long value) (parse-double value) value)
+    value))
+
+(defn- design-set
+  [w]
+  (let [{:keys [path value]} (command/command-data w)
+        path (when (and (vector? path) (seq path))
+               (into [:design] path))]
+    (if path
+      (do (swap! db (fn [db]
+                      (assoc-in db path (coerce (get-in db path) value))))
+          (command/accepted w))
+      (command/rejected w :not-a-design-path))))
+
+(defn- data-only
+  "A view the model wrote may hold a function by mistake; a function would
+  drop the whole frame. It becomes nothing."
+  [hiccup]
+  (walk/postwalk (fn [x] (if (fn? x) nil x)) hiccup))
+
+(defn- design-view
+  []
+  (some-> (ns-resolve 'user 'design-view) deref))
+
+(defn design-pane
+  [db]
+  (let [view-fn (design-view)
+        source (repl/source-of (:agent/log db) "design-view")]
+    [:div.canvas-pane
+     [:div.canvas-bar
+      [:span.label "Your creation"]]
+     (if view-fn
+       [:div.design
+        (try
+          (data-only (view-fn (:design db)))
+          (catch Exception e
+            [:p.error (str "The view failed: " (ex-message e))]))]
+       [:div.canvas-placeholder
+        "Your creation will appear here, with controls to play with it."])
+     (when source
+       [:details.work
+        [:summary "The code of your creation"]
+        [:pre source]])]))
+
 (defn page-view
   [_w]
   (let [db @db]
-    (view/page db {:title "rchat"
+    (view/page db {:title "rchat · repl"
                    :key-missing? key-missing?
-                   :card (canvas/view db canvas {})})))
+                   :card (design-pane db)})))
 
 (def head
   (str "<title>rchat</title>"
@@ -77,19 +139,25 @@
    {:replicant/shim "/"
     :head head}
    {:replicant/render "/"
-    :render/fn #'page-view}])
+    :render/fn #'page-view}
+   {:command/kind :design/set
+    :command/fn #'design-set}])
 
 (defn get-register
   []
   (replicant/expand (concat register
                             command/register
                             (agent/register runner)
-                            (canvas/register canvas))))
+                            (for [[kind f] @commands]
+                              {:command/kind kind
+                               :command/fn f}))))
 
 (defn -main
   [& _args]
   (.mkdirs (io/file work-dir))
-  (canvas/refresh! canvas)
+  (repl/install! (merge (repl/design-helpers db)
+                        {'db db
+                         'set-command! set-command!}))
   (agent/load! runner)
   (sse/watch! db)
   (let [port (parse-long (or (System/getenv "PORT") "8080"))
@@ -101,6 +169,6 @@
                     (auth/link (str "http://localhost:" port) token)
                     (str "http://localhost:" port))
                   (if scripted
-                    (str ", the model is the script " (str scripted))
+                    ", the model is the script repl-script.edn"
                     (str ", the model is " model)))))
   @(promise))

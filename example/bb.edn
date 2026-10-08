@@ -1,3 +1,3 @@
-;; bb -m example.main
+;; bb -m example.main (the REPL agent), bb -m example.bash (the bash agent)
 {:paths ["src" "resources"]
  :deps {io.github.simplemono/rchat$server {:local/root "../server"}}}

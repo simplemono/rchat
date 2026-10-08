@@ -1,0 +1,110 @@
+(ns example.bash
+  "The bash agent with the canvas: a chat with an agent that works in
+  ./work through bash, its creation an HTML page in ./work/canvas shown
+  beside the chat. Without an API key, the script in resources/script.edn
+  stands in for the model.
+
+      bb -m example.bash"
+  (:require [clojure.java.io :as io]
+            [org.httpkit.server :as server]
+            [rchat.agent :as agent]
+            [rchat.auth :as auth]
+            [rchat.canvas :as canvas]
+            [rchat.view :as view]
+            [rframes.command :as command]
+            [rframes.http :as http]
+            [rframes.replicant :as replicant]
+            [rframes.sse :as sse]))
+
+(defonce db
+  (atom {}))
+
+(def work-dir
+  "Where the agent works: RCHAT_WORK, or ./work."
+  (.getAbsolutePath (io/file (or (System/getenv "RCHAT_WORK") "work"))))
+
+(def api-key?
+  (boolean (or (System/getenv "OPENROUTER_API_KEY")
+               (System/getenv "ANTHROPIC_API_KEY"))))
+
+(def model
+  "provider/id as in mini-swe-agent-clj. RCHAT_MODEL overrides the default,
+  GPT-6.1 Sol through OpenRouter."
+  (or (System/getenv "RCHAT_MODEL")
+      (if (and (System/getenv "ANTHROPIC_API_KEY")
+               (not (System/getenv "OPENROUTER_API_KEY")))
+        "anthropic/claude-sonnet-5"
+        agent/default-model)))
+
+(def scripted
+  "The script that plays the model: the file RCHAT_SCRIPT names, or
+  resources/script.edn when there is no API key."
+  (or (System/getenv "RCHAT_SCRIPT")
+      (when-not api-key?
+        (io/resource "script.edn"))))
+
+(defonce canvas
+  (canvas/canvas {:db db
+                  :dir (io/file work-dir "canvas")}))
+
+(defonce runner
+  (agent/runner {:db db
+                 :dir (io/file work-dir ".agent")
+                 :scripted scripted
+                 :config-fn #(agent/config {:model model
+                                            :cwd work-dir
+                                            :cost-limit 5.0})
+                 :after-step (fn [_runner _log]
+                               (canvas/refresh! canvas))
+                 :on-wait (fn [_runner]
+                            (canvas/refresh! canvas))}))
+
+(def key-missing?
+  (agent/api-key-missing? runner))
+
+(defn page-view
+  [_w]
+  (let [db @db]
+    (view/page db {:title "rchat"
+                   :key-missing? key-missing?
+                   :card (canvas/view db canvas {})})))
+
+(def head
+  (str "<title>rchat</title>"
+       "<link rel=\"icon\" href=\"data:,\">"
+       "<link rel=\"stylesheet\" href=\"/rchat.css\">"
+       "<script defer src=\"/js/main.js\"></script>"))
+
+(def register
+  [(http/resources "/rchat.css" "rchat/chat.css")
+   (http/resources "/js/*" "public/js")
+   {:replicant/shim "/"
+    :head head}
+   {:replicant/render "/"
+    :render/fn #'page-view}])
+
+(defn get-register
+  []
+  (replicant/expand (concat register
+                            command/register
+                            (agent/register runner)
+                            (canvas/register canvas))))
+
+(defn -main
+  [& _args]
+  (.mkdirs (io/file work-dir))
+  (canvas/refresh! canvas)
+  (agent/load! runner)
+  (sse/watch! db)
+  (let [port (parse-long (or (System/getenv "PORT") "8080"))
+        token (System/getenv "RCHAT_TOKEN")]
+    (server/run-server (auth/wrap (http/ring-handler get-register) {:token token})
+                       {:port port})
+    (println (str "rchat bash example on "
+                  (if token
+                    (auth/link (str "http://localhost:" port) token)
+                    (str "http://localhost:" port))
+                  (if scripted
+                    (str ", the model is the script " (str scripted))
+                    (str ", the model is " model)))))
+  @(promise))

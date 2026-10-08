@@ -193,28 +193,29 @@ served, for an app that injects a runtime, as video-agent does for
 HyperFrames. A HyperFrames composition with its player is the same idea
 with video-agent's `:ui/player` alias instead of the iframe.
 
-## The REPL agent, an experiment
+## The REPL agent
 
-`rchat.repl` is a second kind of agent on the same runner, after Bret
-Victor's Inventing on Principle: the creation lives in the app's own state,
-the model shapes it with Clojure forms evaluated in this process, and the
-user sees every change the moment it is made, with controls the model
-builds for them. Runner `:step rchat.repl/step`, a text-based model config
-with the prompts `rchat/prompts/repl-system.md` and `repl-task.md`, and
+`rchat.repl` is the second kind of agent on the same runner and the one
+the example runs by default, after Bret Victor's Inventing on Principle:
+the creation lives in the app's own state, the model shapes it with
+Clojure forms evaluated in this process, and the user sees every change
+the moment it is made, with controls the model builds for them. Runner
+`:step rchat.repl/step`, a text-based model config with the prompts
+`rchat/prompts/repl-system.md` and `repl-task.md`, and
 `rchat.repl/install!` puts the vocabulary into the `user` namespace:
 `(design)` and `(design! assoc :title "Hello")` over the `:design` key of
 the app atom, `(defn design-view [design] ...)` for the hiccup the user
 sees, `:design/set` as the command behind a slider, a color picker or a
 text field, `(set-command! ...)` for commands of the model's own, `(done
-"...")` to hand over. Every result stays bound to `$n`. `example/repl.clj`
-is the whole wiring:
-
-```bash
-cd example && bb -m example.repl        # resources/repl-script.edn plays the model without a key
-```
+"...")` to hand over. Every result stays bound to `$n`. The comments of a
+message are the note the user reads; the forms sit behind the tool-call
+row. `example/src/example/main.clj` is the whole wiring, and
+[example/README.md](example/README.md) says what to try.
 
 The hazard is the one of any REPL: a form runs with the full authority of
 the process. For a sandbox that holds nothing but the user's own creation.
+The bash agent (`rchat.agent` with its default step) stays the choice for
+work on files and tools outside the app, with the canvas beside it.
 
 ## Images
 
@@ -228,13 +229,16 @@ caching needs.
 
 ## The example
 
-`example/` is a chat with an agent that works in `example/work`. Without an
-API key the script in `resources/script.edn` plays the model.
+`example/` has both agents. `example.main` is the REPL agent with the live
+creation beside the chat, `example.bash` the bash agent with the canvas.
+Without an API key a script plays the model. See
+[example/README.md](example/README.md) for what to type.
 
 ```bash
 cd example
 clojure -M -m shadow.cljs.devtools.cli release browser   # the bundle, needs a JVM
-bb -m example.main                                       # http://localhost:8080
+bb -m example.main                                       # http://localhost:8080, the REPL agent
+bb -m example.bash                                       # the bash agent with the canvas
 OPENROUTER_API_KEY=... bb -m example.main                 # GPT-6.1 Sol, RCHAT_MODEL picks another
 RCHAT_TOKEN=s3cret bb -m example.main                    # prints the link
 ```
