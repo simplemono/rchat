@@ -36,12 +36,12 @@
      :model "scripted"}))
 
 (defn query-fn
-  "The `:model/query` effect that plays the script at `path`, or the steps
-  given as a vector."
+  "The `:model/query` effect that plays `script`: a vector of steps, or
+  anything `slurp` reads an EDN vector from (a path, a file, a resource)."
   [script]
-  (let [steps (if (string? script)
-                (edn/read-string (slurp script))
-                script)]
+  (let [steps (if (vector? script)
+                script
+                (edn/read-string (slurp script)))]
     (fn [_model-config messages]
       (let [index (count (filter #(= "assistant" (:role %)) messages))]
         (response index (get steps index last-step))))))

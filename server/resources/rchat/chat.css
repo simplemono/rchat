@@ -119,6 +119,13 @@ body {
 .rchat .composer-input {
   display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rchat .composer-input .row {
+  display: flex;
   gap: 8px;
   align-items: flex-end;
   min-width: 0;
@@ -127,6 +134,51 @@ body {
 .rchat .composer-input textarea {
   flex: 1;
   min-width: 0;
+}
+
+.rchat .attach {
+  padding: 8px 10px;
+  border: 1px solid var(--rchat-line);
+  border-radius: 8px;
+  background: var(--rchat-panel);
+  cursor: pointer;
+  user-select: none;
+}
+
+.rchat .attach:hover {
+  color: var(--rchat-text);
+  border-color: var(--rchat-muted);
+}
+
+.rchat .attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rchat .attachment {
+  position: relative;
+  display: inline-block;
+}
+
+.rchat .attachment img {
+  display: block;
+  height: 72px;
+  border-radius: 6px;
+  border: 1px solid var(--rchat-line);
+}
+
+.rchat .attachment .remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 20px;
+  text-align: center;
+  background: var(--rchat-bg);
 }
 
 .rchat textarea {
@@ -253,21 +305,44 @@ body {
   animation: rchat-pulse 1.2s ease-in-out infinite;
 }
 
-.rchat details {
+.rchat details.work {
   margin-top: 4px;
   color: var(--rchat-muted);
   font-size: 13px;
 }
 
-.rchat summary {
+.rchat details.work > summary {
   cursor: pointer;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  list-style: none;
+  user-select: none;
 }
 
-.rchat summary.failed {
+.rchat details.work > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rchat details.work > summary::before {
+  content: "▸ ";
+}
+
+.rchat details.work[open] > summary::before {
+  content: "▾ ";
+}
+
+.rchat details.work > summary:hover {
+  color: var(--rchat-text);
+}
+
+.rchat details.work > summary.failed {
+  color: var(--rchat-warn);
+}
+
+.rchat .output .meta {
+  margin-top: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.rchat .output .meta.failed {
   color: var(--rchat-warn);
 }
 

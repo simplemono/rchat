@@ -14,6 +14,7 @@
                        turn positions or links into something clickable
        :placeholder    of the composer
        :max-items      newest items of the feed that are shown (60)
+       :show-task?     whether the first message, the task, is shown (true)
        :card           hiccup the page shows above the feed (optional)
        :key-missing?   true shows that the model's API key is not set}"
   (:require [clojure.string :as str]
@@ -24,22 +25,37 @@
   {:title "rchat"
    :handover-label "Ready for you"
    :text-fn list
-   :max-items 60})
-
-(defn- command-view
-  [command]
-  [:details.command
-   [:summary (feed/cut 100 (first (str/split-lines command)))]
-   [:pre (feed/cut 3000 command)]])
+   :max-items 60
+   :show-task? true})
 
 (defn- output-view
   [{:keys [returncode output exception-info]}]
-  [:details.output
-   [:summary {:class (when-not (= 0 returncode) "failed")}
+  [:div.output
+   [:div.meta {:class (when-not (= 0 returncode) "failed")}
     (str "exit " returncode " · " (count output) " characters")]
-   [:pre (str (feed/tail 2000 output)
-              (when (seq exception-info)
-                (str "\n" exception-info)))]])
+   (when (or (seq output) (seq exception-info))
+     [:pre (str (feed/tail 2000 output)
+                (when (seq exception-info)
+                  (str "\n" exception-info)))])])
+
+(defn- work-view
+  "The commands of a step and what they returned, collapsed behind one
+  plain row: a normal user does not need to read them, and can."
+  [commands outputs]
+  (let [failed? (some #(not= 0 (:returncode %)) outputs)]
+    [:details.work
+     [:summary {:class (when failed? "failed")}
+      (str (if (= 1 (count commands))
+             "Tool call"
+             (str (count commands) " tool calls"))
+           (when failed?
+             " · one did not work"))]
+     (for [[i command] (map-indexed vector commands)
+           node [[:pre.command {:replicant/key (str "command-" i)} (feed/cut 3000 command)]
+                 (when-let [output (nth outputs i nil)]
+                   (output-view output))]
+           :when node]
+       node)]))
 
 (defn- looks-view
   [looks]
@@ -57,11 +73,13 @@
     [:div.item.step {:replicant/key index}
      (when (seq text)
        [:p.text (text-fn text)])
-     (map command-view commands)]
+     (when (seq commands)
+       (work-view commands outputs))
+     (looks-view looks)]
 
     :result
     [:div.item.result {:replicant/key index}
-     (map output-view outputs)
+     (work-view [] outputs)
      (looks-view looks)]
 
     :looks
@@ -76,7 +94,14 @@
     :user
     [:div.item.user {:replicant/key index}
      [:div.label "You"]
-     [:p.text (text-fn text)]]
+     (when (seq text)
+       [:p.text (text-fn text)])
+     (looks-view looks)]
+
+    :user-looks
+    [:div.item.user {:replicant/key index}
+     [:div.label "You"]
+     (looks-view looks)]
 
     :note
     [:div.item.note {:replicant/key index}
@@ -104,17 +129,20 @@
   attribute scrolled to its end while the user is at the end."
   [{:keys [agent/status agent/log agent/pending] :as db} opts]
   (let [status (or status :idle)
-        {:keys [max-items] :as opts} (merge defaults opts)
-        items (feed/items log)
+        {:keys [max-items show-task?] :as opts} (merge defaults opts)
+        items (cond->> (feed/grouped (feed/items log))
+                (not show-task?) (remove #(= 0 (:index %))))
         hidden (max 0 (- (count items) max-items))]
     [:section.feed {:data-stick-to-end "true"}
      (when (pos? hidden)
        [:p.hint (str hidden " earlier steps are not shown.")])
      (map #(item-view opts %) (drop hidden items))
-     (for [[index text] (map-indexed vector pending)]
+     (for [[index {:keys [text images]}] (map-indexed vector pending)]
        [:div.item.user.pending {:replicant/key (str "pending-" index)}
         [:div.label "You (not read yet)"]
-        [:p.text text]])
+        (when (seq text)
+          [:p.text text])
+        (looks-view (map #(str "/looks/" %) images))])
      ;; Where the eyes are while reading: what the agent does right now,
      ;; below the newest item.
      (when (= :working status)
@@ -123,11 +151,13 @@
         [:span (feed/status-text db)]])]))
 
 (def send-actions
-  "The action that sends the draft as a message."
+  "The action that sends the draft and the attached images as a message."
   [[:data/command
     {:command/kind :agent/send
-     :command/data {:text [:store/deref :rchat/draft]}}
-    {:on-success [[:store/dissoc :rchat/draft]]}]])
+     :command/data {:text [:store/deref :rchat/draft]
+                    :images [:store/deref :rchat/attachments]}}
+    {:on-success [[:store/dissoc :rchat/draft]
+                  [:store/dissoc :rchat/attachments]]}]])
 
 (defn composer
   [{:keys [agent/status agent/stopping?]} opts]
@@ -137,6 +167,8 @@
      (when key-missing?
        [:p.error "The API key of the model is not set in the environment of the server."])
      [:ui/composer {:ui/store-key :rchat/draft
+                    :ui/attachments-key :rchat/attachments
+                    :ui/upload-url "/upload"
                     :ui/send send-actions
                     :ui/send-label (if (= :idle status) "Start" "Send")
                     :ui/disabled? (boolean key-missing?)

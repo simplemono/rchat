@@ -68,7 +68,7 @@
       (let [log (:agent/log @db)]
         (is (= "First result.\n" (log/submission log)))
         (is (= "Say hello." (log/task log)))
-        (is (= [:step :result :step :handover] (map :kind (feed/items log))))
+        (is (= [:user :step :result :step :handover] (map :kind (feed/items log))))
         (is (= "hello\n" (:output (first (:outputs (first (filter #(= :actions/observed (:type %)) log)))))))))
     (testing "the log is saved after every step"
       (is (= (:agent/log @db) (edn/read-string (slurp (:log-file runner))))))
@@ -76,7 +76,7 @@
       (is (true? (agent/send! runner "Now wait a bit.")))
       (is (await-running-command runner 10000))
       (is (true? (agent/send! runner "Faster please.")))
-      (is (= ["Faster please."] (:agent/pending @db)))
+      (is (= [{:text "Faster please." :images []}] (:agent/pending @db)))
       (is (= :working (agent/status runner))))
     (testing "stop ends the running command and the run"
       (is (true? (agent/stop! runner)))
@@ -128,6 +128,19 @@
         (is (= :stopped (await-status runner3 #{:waiting :stopped} 2000)))))
     (agent/stop! runner)
     (await-status runner #{:stopped} 5000)))
+
+(deftest crash-test
+  (testing "a failing effect ends the run as a crash the user sees, not as working forever"
+    (let [dir (temp-dir)
+          runner (agent/runner {:db (atom {})
+                                :dir (io/file dir ".agent")
+                                :scripted "/nowhere/script.edn"
+                                :config-fn #(agent/config {:model "openrouter/test/model"
+                                                           :cwd dir})})]
+      (is (true? (binding [*err* (java.io.StringWriter.)]
+                   (agent/send! runner "Say hello."))))
+      (is (= :stopped (await-status runner #{:stopped} 5000)))
+      (is (= "FileNotFoundException" (:status (log/exit (:agent/log @(:db runner)))))))))
 
 (deftest resumable-test
   (let [log [{:type :run/started

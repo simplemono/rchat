@@ -68,6 +68,27 @@
       (is (= "Start" (:ui/send-label attrs)))
       (is (= view/send-actions (:ui/send attrs))))))
 
+(deftest tool-calls-collapsed-test
+  (let [view (view/feed {:agent/log feed-test/log
+                         :agent/status :waiting}
+                        {})
+        step (first (filter #(= :div.item.step (first %)) (nodes view)))
+        summaries (filter #(= :summary (first %)) (nodes step))]
+    (testing "a step shows its note and one collapsed row for the tool calls"
+      (is (= [[:summary {:class nil} "Tool call"]] summaries))
+      (is (some #(= :details.work (first %)) (nodes step))))
+    (testing "the command and its output are inside the row"
+      (let [details (first (filter #(= :details.work (first %)) (nodes step)))]
+        (is (some #(and (= :pre.command (first %)) (= "look a.png" (last %))) (nodes details)))
+        (is (some #(= :div.output (first %)) (nodes details)))))))
+
+(deftest show-task-test
+  (let [db {:agent/log feed-test/log
+            :agent/status :waiting}
+        texts (fn [view] (->> (nodes view) (filter #(= :p.text (first %))) (map last)))]
+    (is (some #(= ["Say hello."] %) (map #(when (seq? %) (vec %)) (texts (view/feed db {})))))
+    (is (not-any? #(= ["Say hello."] %) (map #(when (seq? %) (vec %)) (texts (view/feed db {:show-task? false})))))))
+
 (deftest text-fn-test
   (let [view (view/feed {:agent/log feed-test/log
                          :agent/status :waiting}

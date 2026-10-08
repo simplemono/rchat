@@ -28,6 +28,7 @@
             [rchat.env :as env]
             [rchat.look :as look]
             [rchat.scripted :as scripted]
+            [rchat.upload :as upload]
             [rframes.command :as command]
             [rframes.http :as rhttp]))
 
@@ -56,6 +57,7 @@
            :looks-dir (str (io/file dir "looks"))
            :queue (java.util.concurrent.LinkedBlockingQueue.)
            :running (atom nil)
+           :attach (atom [])
            :stop? (atom false)
            :lock (Object.))))
 
@@ -142,10 +144,37 @@
 (def ^:private stop-signal
   ::stop)
 
+(defn- message
+  "A message of the user as a map: `{:text ... :images [...]}`, the images
+  as file names in the looks directory that `rchat.upload` stored."
+  [text-or-map]
+  (if (map? text-or-map)
+    (update text-or-map :images #(vec (or % [])))
+    {:text (str text-or-map)
+     :images []}))
+
+(defn- image-paths
+  "The paths of the attached images that exist in the looks directory. A
+  name that leaves the directory is dropped."
+  [{:keys [looks-dir]} names]
+  (vec (keep #(some-> (rhttp/resolve-file looks-dir (str %)) str) names)))
+
+(defn- images-entry
+  "The user message that shows the attached images, or nil."
+  [paths now]
+  (when (seq paths)
+    {:type :user/attached
+     :at now
+     :message {:role "user"
+               :content (into [{:type "text"
+                                :text "The images the user attached:"}]
+                              (map look/reference)
+                              paths)}}))
+
 (defn- enqueue!
-  [{:keys [db queue]} text]
-  (swap! db update :agent/pending (fnil conj []) text)
-  (.put queue text))
+  [{:keys [db queue]} message]
+  (swap! db update :agent/pending (fnil conj []) message)
+  (.put queue message))
 
 (defn- read-pending!
   [{:keys [db]}]
@@ -158,8 +187,9 @@
 (defn- ask!
   "The `:user/ask` effect. mini-swe-agent calls it when the agent submits:
   the agent hands over, and the thread waits for the next message of the
-  user, which becomes the next task."
-  [{:keys [db queue on-wait] :as runner} _prompt]
+  user, which becomes the next task. mini-swe-agent takes the text; the
+  images follow the step as a message of their own (see `step!`)."
+  [{:keys [db queue on-wait attach] :as runner} _prompt]
   (swap! db assoc :agent/status :waiting)
   (when on-wait
     (on-wait runner))
@@ -168,7 +198,8 @@
       (throw (stopped)))
     (read-pending! runner)
     (swap! db assoc :agent/status :working)
-    message))
+    (reset! attach (image-paths runner (:images message)))
+    (:text message)))
 
 (defn- steer
   "A message that arrived while the agent works becomes a user message
@@ -177,14 +208,19 @@
   (let [message (when (= :query (log/phase log))
                   (.peek queue))]
     (if (and message (not= stop-signal message))
-      (do
+      (let [paths (image-paths runner (:images message))]
         (.take queue)
         (read-pending! runner)
         (conj log {:type :user/interrupted
                    :interrupt-type "UserMessage"
                    :at (now)
                    :message {:role "user"
-                             :content message}}))
+                             :content (if (seq paths)
+                                        (into [{:type "text"
+                                                :text (:text message)}]
+                                              (map look/reference)
+                                              paths)
+                                        (:text message))}}))
       log)))
 
 ;;; The loop
@@ -208,11 +244,22 @@
                  (ask! runner prompt))
      :clock/now now}))
 
+(defn- with-attached
+  "The images the last `ask!` took, as a message after the step that took
+  them."
+  [{:keys [attach]} log]
+  (let [paths @attach]
+    (reset! attach [])
+    (cond-> log
+      (seq paths) (conj (images-entry paths (now))))))
+
 (defn- step!
   [{:keys [looks-dir after-step] :as runner} effects]
   (let [log (steer runner (log-of runner))
         api (keyword (get-in (log/config log) [:model :api]))
-        stepped (look/attach (agent/step effects log) (count log) looks-dir api (now))]
+        stepped (->> (agent/step effects log)
+                     (with-attached runner)
+                     (#(look/attach % (count log) looks-dir api (now))))]
     (put-log! runner stepped)
     (when after-step
       (after-step runner stepped))))
@@ -228,26 +275,29 @@
 
 (defn- run-loop!
   [{:keys [db stop? queue] :as runner}]
-  (let [effects (effects runner)]
-    (try
+  (try
+    ;; The effects are built inside the try: a future swallows what its
+    ;; body throws, and a failure here has to become a crash the user
+    ;; sees, not a run that shows as working forever.
+    (let [effects (effects runner)]
       (while (and (not @stop?)
                   (not= :done (log/phase (log-of runner))))
         (step! runner effects))
       (when @stop?
-        (exit! runner "Stopped"))
-      (catch Throwable e
-        (if (::stop (ex-data e))
-          (exit! runner "Stopped")
-          (do
-            (binding [*out* *err*]
-              (println "[rchat]" (str e)))
-            (put-log! runner (agent/crash (log-of runner) (now) e)))))
-      (finally
-        (reset! stop? false)
-        (while (.remove queue stop-signal))
-        (swap! db assoc
-               :agent/status :stopped
-               :agent/stopping? false)))))
+        (exit! runner "Stopped")))
+    (catch Throwable e
+      (if (::stop (ex-data e))
+        (exit! runner "Stopped")
+        (do
+          (binding [*out* *err*]
+            (println "[rchat]" (str e)))
+          (put-log! runner (agent/crash (log-of runner) (now) e)))))
+    (finally
+      (reset! stop? false)
+      (while (.remove queue stop-signal))
+      (swap! db assoc
+             :agent/status :stopped
+             :agent/stopping? false))))
 
 (defn- start-thread!
   [{:keys [db stop?] :as runner}]
@@ -271,16 +321,20 @@
        (not (#{:working :waiting} (status runner)))))
 
 (defn start!
-  "Starts the agent on `task`. `vars` are extra values for the prompt
-  templates. Returns true if it started."
-  [{:keys [config-fn lock] :as runner} {:keys [task vars]}]
+  "Starts the agent on `task`, with `images` (file names in the looks
+  directory) shown to the model after the task. `vars` are extra values
+  for the prompt templates. Returns true if it started."
+  [{:keys [config-fn lock] :as runner} {:keys [task images vars]}]
   (locking lock
     (when (startable? runner)
-      (let [config (config-fn)]
-        (put-log! runner (agent/init {:config config
-                                      :task task
-                                      :vars (merge (default-vars runner config) vars)
-                                      :now (now)}))
+      (let [config (config-fn)
+            log (agent/init {:config config
+                             :task task
+                             :vars (merge (default-vars runner config) vars)
+                             :now (now)})
+            entry (images-entry (image-paths runner images) (now))]
+        (put-log! runner (cond-> log
+                           entry (conj entry)))
         (start-thread! runner)
         true))))
 
@@ -310,24 +364,27 @@
       true)))
 
 (defn send!
-  "A message of the user. It starts the agent, answers its handover, steers
-  it while it works, or continues a stopped run with the message as the next
-  task. Returns true if the message was taken."
-  [{:keys [lock] :as runner} text]
+  "A message of the user, a string or `{:text ... :images [...]}` with the
+  names of attached images. It starts the agent, answers its handover,
+  steers it while it works, or continues a stopped run with the message as
+  the next task. Returns true if the message was taken."
+  [{:keys [lock] :as runner} text-or-map]
   (locking lock
-    (cond
-      (startable? runner)
-      (start! runner {:task text})
+    (let [{:keys [text images] :as message} (message text-or-map)]
+      (cond
+        (startable? runner)
+        (start! runner {:task text
+                        :images images})
 
-      (#{:working :waiting} (status runner))
-      (do (enqueue! runner text)
-          true)
+        (#{:working :waiting} (status runner))
+        (do (enqueue! runner message)
+            true)
 
-      :else
-      (do (put-log! runner (resumable (log-of runner) (now)))
-          (enqueue! runner text)
-          (start-thread! runner)
-          true))))
+        :else
+        (do (put-log! runner (resumable (log-of runner) (now)))
+            (enqueue! runner message)
+            (start-thread! runner)
+            true)))))
 
 (defn stop!
   "Ends the command that runs right now and the run. Returns true if there
@@ -369,16 +426,22 @@
 
 (defn- send-command
   [runner w]
-  (let [text (str/trim (str (:text (command/command-data w))))]
+  (let [{:keys [text images]} (command/command-data w)
+        text (str/trim (str text))
+        images (when (sequential? images)
+                 (vec (keep :name images)))]
     (cond
-      (str/blank? text)
+      (and (str/blank? text) (empty? images))
       (command/rejected w :empty-message)
 
       (api-key-missing? runner)
       (command/rejected w :api-key-missing)
 
       :else
-      (do (send! runner text)
+      (do (send! runner {:text (if (str/blank? text)
+                                 "See the images I attached."
+                                 text)
+                         :images images})
           (command/accepted w)))))
 
 (defn- stop-command
@@ -409,9 +472,9 @@
              rhttp/not-found))))
 
 (defn register
-  "The commands of the chat and the route for the images the agent looked
-  at: `:agent/send {:text ...}`, `:agent/stop`, `:agent/continue` and
-  GET /looks/*."
+  "The commands of the chat and the routes for images: `:agent/send
+  {:text ... :images [{:name ...}]}`, `:agent/stop`, `:agent/continue`,
+  GET /looks/* and POST /upload."
   [runner]
   [{:command/kind :agent/send
     :command/fn (fn [w] (send-command runner w))}
@@ -420,7 +483,9 @@
    {:command/kind :agent/continue
     :command/fn (fn [w] (continue-command runner w))}
    {:ring/route [:get "/looks/*"]
-    :ring/handler (fn [w] (look-handler runner w))}])
+    :ring/handler (fn [w] (look-handler runner w))}
+   {:ring/route [:post "/upload"]
+    :ring/handler (fn [w] (upload/handler runner w))}])
 
 (comment
   (def db (atom {}))

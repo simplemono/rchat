@@ -31,11 +31,11 @@
         agent/default-model)))
 
 (def scripted
-  "The script that plays the model: RCHAT_SCRIPT, or script.edn when there
-  is no API key."
+  "The script that plays the model: the file RCHAT_SCRIPT names, or
+  resources/script.edn when there is no API key."
   (or (System/getenv "RCHAT_SCRIPT")
       (when-not api-key?
-        "script.edn")))
+        (io/resource "script.edn"))))
 
 (defonce runner
   (agent/runner {:db db
@@ -87,6 +87,6 @@
                     (auth/link (str "http://localhost:" port) token)
                     (str "http://localhost:" port))
                   (if scripted
-                    (str ", the model is the script " scripted)
+                    (str ", the model is the script " (str scripted))
                     (str ", the model is " model)))))
   @(promise))

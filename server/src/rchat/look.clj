@@ -30,7 +30,8 @@
                      (not (str/includes? % ".."))))
        (distinct)))
 
-(defn- reference
+(defn reference
+  "The image block the log keeps: a reference to the file, not its bytes."
   [path]
   {:type "image"
    :source {:type "look"
@@ -96,15 +97,23 @@
   (.encodeToString (java.util.Base64/getEncoder)
                    (java.nio.file.Files/readAllBytes (.toPath file))))
 
+(defn media-type
+  [file]
+  (case (str/lower-case (or (second (re-find #"\.([^./]+)$" (.getName file))) ""))
+    "png" "image/png"
+    "webp" "image/webp"
+    "gif" "image/gif"
+    "image/jpeg"))
+
 (defn- image-block
   [api file]
   (if (= :anthropic api)
     {:type "image"
      :source {:type "base64"
-              :media_type "image/jpeg"
+              :media_type (media-type file)
               :data (image-data file)}}
     {:type "image_url"
-     :image_url {:url (str "data:image/jpeg;base64," (image-data file))}}))
+     :image_url {:url (str "data:" (media-type file) ";base64," (image-data file))}}))
 
 (defn- inline-block
   [api block]

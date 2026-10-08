@@ -22,6 +22,9 @@ piece between the two, the one that turns an agent run into a conversation:
   Anthropic API, as a user message for OpenAI-compatible APIs (OpenRouter).
 - **No API key needed to try it.** A script of steps stands in for the
   model, in tests and in the example.
+- **Images go both ways.** The user pastes or attaches screenshots, scaled
+  in the browser and sent with the message; the agent's commands show the
+  model images with a `[[look:<path>]]` marker.
 - **A secret link is the login.** One cookie, no accounts.
 
 The server runs on babashka (a JVM is needed to build the browser bundle,
@@ -150,7 +153,13 @@ The bundle hands rchat's composer to the rframes runtime:
 
 The composer is the one thing the browser owns: the draft lives in the
 client store, so a frame that arrives mid-typing does not reset it. Enter
-sends, Shift+Enter breaks the line; on a touch device the button sends.
+sends, Shift+Enter breaks the line; on a touch device the button sends. A
+screenshot pasted into the text, a file dropped on it or picked with the
+attach button is scaled in the browser to at most 1600 px, uploaded to
+`/upload` and sent with the next message; the agent sees it right after
+the text. In the feed, a step is the agent's note and one collapsed "Tool
+call" row; the commands and their output are behind it, for whoever wants
+them.
 
 ## Images
 
@@ -165,7 +174,7 @@ caching needs.
 ## The example
 
 `example/` is a chat with an agent that works in `example/work`. Without an
-API key the script in `script.edn` plays the model.
+API key the script in `resources/script.edn` plays the model.
 
 ```bash
 cd example

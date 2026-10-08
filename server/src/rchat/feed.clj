@@ -46,6 +46,10 @@
   "A log entry as what the user reads about it, or nil."
   [entry]
   (case (:type entry)
+    :run/started
+    {:kind :user
+     :text (:task entry)}
+
     :model/responded
     {:kind :step
      :text (str/trim (message-text (:message entry)))
@@ -64,8 +68,14 @@
      :looks (mapv look-url (look/references entry))}
 
     :user/interrupted
-    {:kind :user
-     :text (user-text entry)}
+    (let [looks (mapv look-url (look/references entry))]
+      (cond-> {:kind :user
+               :text (user-text entry)}
+        (seq looks) (assoc :looks looks)))
+
+    :user/attached
+    {:kind :user-looks
+     :looks (mapv look-url (look/references entry))}
 
     :model/format-error
     {:kind :note
@@ -85,6 +95,30 @@
                        (some-> (item entry)
                                (assoc :index index)))
                      log)))
+
+(defn grouped
+  "The items with every result and image folded into the step that produced
+  them, so that a step reads as one note, one collapsed row of tool calls
+  and the images."
+  [items]
+  (reduce (fn [acc {:keys [kind] :as item}]
+            (cond
+              (and (#{:result :looks} kind)
+                   (= :step (:kind (peek acc))))
+              (conj (pop acc)
+                    (-> (peek acc)
+                        (update :outputs (fnil into []) (:outputs item))
+                        (update :looks (fnil into []) (:looks item))))
+
+              (and (= :user-looks kind)
+                   (= :user (:kind (peek acc))))
+              (conj (pop acc)
+                    (update (peek acc) :looks (fnil into []) (:looks item)))
+
+              :else
+              (conj acc item)))
+          []
+          items))
 
 (defn- running-command
   [log]
