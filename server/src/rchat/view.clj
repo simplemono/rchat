@@ -10,8 +10,12 @@
 
       {:title          the name in the header
        :handover-label the label of a handover (\"Ready for you\")
-       :text-fn        (fn [text] children) for the text of an item, e.g. to
-                       turn positions or links into something clickable
+       :text-fn        (fn [text] children) for the text of the agent, by
+                       default its markdown as hiccup (rchat.markdown); an
+                       app that turns positions into jumps passes
+                       (fn [text] (markdown/children text {:leaf ...}))
+       :user-text-fn   the same for the text of the user, plain by default:
+                       people do not write markdown
        :placeholder    of the composer
        :max-items      newest items of the feed that are shown (60)
        :show-task?     whether the first message, the task, is shown (true)
@@ -19,12 +23,14 @@
        :key-missing?   true shows that the model's API key is not set}"
   (:require [clojure.string :as str]
             [minisweagent.log :as log]
-            [rchat.feed :as feed]))
+            [rchat.feed :as feed]
+            [rchat.markdown :as markdown]))
 
 (def defaults
   {:title "rchat"
    :handover-label "Ready for you"
-   :text-fn list
+   :text-fn markdown/children
+   :user-text-fn list
    :max-items 60
    :show-task? true})
 
@@ -66,13 +72,13 @@
               :loading "lazy"}])]))
 
 (defn- item-view
-  [{:keys [text-fn handover-label]}
+  [{:keys [text-fn user-text-fn handover-label]}
    {:keys [kind index text commands outputs looks status exception]}]
   (case kind
     :step
     [:div.item.step {:replicant/key index}
      (when (seq text)
-       [:p.text (text-fn text)])
+       [:div.text (text-fn text)])
      (when (seq commands)
        (work-view commands outputs))
      (looks-view looks)]
@@ -89,13 +95,13 @@
     :handover
     [:div.item.handover {:replicant/key index}
      [:div.label handover-label]
-     [:p.text (text-fn text)]]
+     [:div.text (text-fn text)]]
 
     :user
     [:div.item.user {:replicant/key index}
      [:div.label "You"]
      (when (seq text)
-       [:p.text (text-fn text)])
+       [:p.text (user-text-fn text)])
      (looks-view looks)]
 
     :user-looks

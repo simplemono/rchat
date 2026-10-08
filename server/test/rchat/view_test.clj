@@ -89,6 +89,29 @@
     (is (some #(= ["Say hello."] %) (map #(when (seq? %) (vec %)) (texts (view/feed db {})))))
     (is (not-any? #(= ["Say hello."] %) (map #(when (seq? %) (vec %)) (texts (view/feed db {:show-task? false})))))))
 
+(deftest markdown-test
+  (let [log (conj (subvec feed-test/log 0 4)
+                  {:type :actions/observed
+                   :message {:role "user"
+                             :content [{:type "tool_result"
+                                        :tool_use_id "toolu_2"
+                                        :content "{}"}]}
+                   :outputs [{:output "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\nBuilt **index.html**, see `cat x`.\n"
+                              :returncode 0
+                              :exception-info ""}]}
+                  {:type :user/interrupted
+                   :interrupt-type "UserNewTask"
+                   :message {:role "user"
+                             :content "The user added a new task: my_file_name **stays**"}})
+        view (view/feed {:agent/log log
+                         :agent/status :waiting}
+                        {})]
+    (testing "the agent's text is markdown"
+      (is (some #(= [:strong "index.html"] %) (nodes view)))
+      (is (some #(= [:code "cat x"] %) (nodes view))))
+    (testing "the user's text is not"
+      (is (some #(= [:p.text (list "my_file_name **stays**")] %) (nodes view))))))
+
 (deftest text-fn-test
   (let [view (view/feed {:agent/log feed-test/log
                          :agent/status :waiting}

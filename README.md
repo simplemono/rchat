@@ -159,7 +159,10 @@ attach button is scaled in the browser to at most 1600 px, uploaded to
 `/upload` and sent with the next message; the agent sees it right after
 the text. In the feed, a step is the agent's note and one collapsed "Tool
 call" row; the commands and their output are behind it, for whoever wants
-them.
+them. The agent's notes and handovers are Markdown, rendered on the server
+as hiccup (`rchat.markdown`): raw HTML in them stays text and an image
+becomes a link, so the model never puts markup or a URL to load on the
+page. The user's text is shown as typed.
 
 ## Images
 

@@ -236,8 +236,92 @@ body {
 
 .rchat .item .text {
   margin: 0;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* The user's text is shown as typed; the agent's is markdown. */
+.rchat .item p.text {
+  white-space: pre-wrap;
+}
+
+.rchat .text p,
+.rchat .text ul,
+.rchat .text ol,
+.rchat .text blockquote,
+.rchat .text pre,
+.rchat .text table {
+  margin: 0 0 8px;
+}
+
+.rchat .text > :last-child {
+  margin-bottom: 0;
+}
+
+.rchat .text ul,
+.rchat .text ol {
+  padding-left: 22px;
+}
+
+.rchat .text li {
+  margin: 2px 0;
+}
+
+.rchat .text h1,
+.rchat .text h2,
+.rchat .text h3,
+.rchat .text h4,
+.rchat .text h5,
+.rchat .text h6 {
+  margin: 10px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rchat .text > h1:first-child,
+.rchat .text > h2:first-child,
+.rchat .text > h3:first-child {
+  margin-top: 0;
+}
+
+.rchat .text code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #0b0c0e;
+  color: #c5cad1;
+  font: 13px/1.45 ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.rchat .text pre code {
+  padding: 0;
+  background: none;
+  font-size: 12px;
+}
+
+.rchat .text a {
+  color: var(--rchat-accent);
+}
+
+.rchat .text blockquote {
+  padding-left: 10px;
+  border-left: 3px solid var(--rchat-line);
+  color: var(--rchat-muted);
+}
+
+.rchat .text table {
+  border-collapse: collapse;
+}
+
+.rchat .text th,
+.rchat .text td {
+  padding: 3px 8px;
+  border: 1px solid var(--rchat-line);
+  text-align: left;
+}
+
+.rchat .text hr {
+  border: 0;
+  border-top: 1px solid var(--rchat-line);
+  margin: 8px 0;
 }
 
 .rchat .label {

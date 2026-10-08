@@ -6,7 +6,7 @@
   :commands ["echo 'Hello from the agent' > hello.txt"
              "cat hello.txt"]}
  {:text "Done, handing over."
-  :commands ["mkdir -p .agent && printf 'I wrote hello.txt with a greeting. Tell me what to change.\\n' > .agent/message.md && echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; cat .agent/message.md"]}
+  :commands ["mkdir -p .agent && printf 'I wrote **hello.txt** with a greeting.\\n\\n- Open it with `cat hello.txt`\\n- Tell me what to change\\n' > .agent/message.md && echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; cat .agent/message.md"]}
  {:text "Changing the greeting as you asked. This takes a moment."
   :commands ["sleep 4"
              "echo 'Hello again' > hello.txt"]}
