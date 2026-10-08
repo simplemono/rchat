@@ -66,19 +66,25 @@ model sees the same REPL output.
 
 ## What to type for motion
 
-The same agent, the same card, one more dimension: time. As soon as the
-design has a `:duration` and the view takes a time, the pane becomes a
-player with a scrubber. Under the hood it is
+Time is one more dimension of the same agent. As soon as the design has
+a `:duration` and the view takes a time, the pane beside the chat
+becomes a player with a scrubber. Under the hood it is
 [fnmotion](https://github.com/simplemono/fnmotion): a frame is a pure
 function of the design and the time in seconds, nothing is pre-rendered.
-Without an API key the script gets there on the third message.
+Start here with an empty conversation, nothing above is needed. Without
+an API key the script answers the first two messages with a still card
+and the third with a clip, whatever you type.
 
-First message, after the card above or on its own:
+First message:
 
-> Turn the card into a six-second clip for a story: the hotel name
-> springs in, then "Guests love it here. Come and see." appears word by
-> word as if spoken, with the spoken word in the accent color, and a thin
-> bar at the bottom shows how far we are. Keep the controls.
+> Make a six-second clip for an Instagram story about a small hotel: the
+> hotel name springs in, then "Guests love it here. Come and see."
+> appears word by word as if spoken, with the spoken word in an accent
+> color, and a thin bar at the bottom shows how far we are. Give me
+> controls for the colors and the text size.
+
+If you built the review card above first, "Turn the card into a
+six-second clip, …" with the same sentence does the same from there.
 
 Rounds that show what the player can do:
 
