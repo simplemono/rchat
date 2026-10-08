@@ -1,0 +1,27 @@
+;; A model for the REPL example without an API key: the texts are the
+;; model's messages, Clojure forms evaluated in the app.
+[";; A review card with a slider, a color picker and a text field.
+(design! merge {:title \"Guest Review\" :size 28 :color \"#b45309\" :quote \"I loved staying here! Definitely 10/10.\"})
+(defn setter [path]
+  {:input [[:data/command {:command/kind :design/set
+                           :command/data {:path path :value :event/target.value}}]]})
+(defn design-view [{:keys [title size color quote]}]
+  [:div
+   [:div {:style {:max-width \"420px\" :margin \"0 auto\" :padding \"28px\" :border-radius \"16px\"
+                  :background \"#fff7ed\" :box-shadow \"0 8px 30px rgba(67, 20, 7, .15)\"}}
+    [:h1 {:style {:margin \"0 0 8px\" :font-size (str size \"px\") :color color}} title]
+    [:p {:style {:color \"#f59e0b\" :letter-spacing \"2px\" :margin \"0 0 8px\"}} \"\\u2605\\u2605\\u2605\\u2605\\u2605\"]
+    [:p {:style {:margin 0}} (str \"\\\"\" quote \"\\\"\")]]
+   [:div {:style {:margin-top \"20px\"}}
+    [:label \"Size \" [:input {:type \"range\" :min 16 :max 64 :value size :on (setter [:size])}]]
+    [:label \"Color \" [:input {:type \"color\" :value color :on (setter [:color])}]]
+    [:label \"Title \" [:input {:type \"text\" :value title :on (setter [:title])}]]]])"
+ "(done \"A review card is on your canvas. Drag the size slider, pick a color or change the title: it updates as you move.\")"
+ ";; Adding a button that shuffles the color, as you asked.
+(set-command! :design/shuffle (fn [w] (design! assoc :color (rand-nth [\"#b45309\" \"#164e63\" \"#4c1d95\" \"#065f46\"])) w))
+(def card-view design-view)
+(defn design-view [design]
+  [:div
+   (card-view design)
+   [:button {:style {:margin-top \"12px\"} :on {:click [[:data/command {:command/kind :design/shuffle}]]}} \"Shuffle the color\"]])"
+ "(done \"There is a button now that picks another color each time you press it.\")"]

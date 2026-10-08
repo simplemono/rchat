@@ -46,6 +46,25 @@
       (let [index (count (filter #(= "assistant" (:role %)) messages))]
         (response index (get steps index last-step))))))
 
+(defn text-query-fn
+  "A `:model/query` effect for an agent whose messages are text, e.g.
+  rchat.repl: it answers call n with the n-th string of `texts`, and after
+  the last one it hands over."
+  [texts]
+  (fn [_model-config messages]
+    (let [index (count (filter #(= "assistant" (:role %)) messages))
+          text (get texts index "(done \"The script is over.\")")]
+      {:message {:role "assistant"
+                 :content text}
+       :text text
+       :tool-calls []
+       :truncated? false
+       :tokens {:input 0
+                :output 0
+                :cache-write 0
+                :cache-read 0}
+       :model "scripted"})))
+
 (comment
   (response 0 {:text "Looking around." :commands ["ls"]})
   )

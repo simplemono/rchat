@@ -16,7 +16,8 @@
   (atom {}))
 
 (def work-dir
-  (.getAbsolutePath (io/file "work")))
+  "Where the agent works: RCHAT_WORK, or ./work."
+  (.getAbsolutePath (io/file (or (System/getenv "RCHAT_WORK") "work"))))
 
 (def api-key?
   (boolean (or (System/getenv "OPENROUTER_API_KEY")

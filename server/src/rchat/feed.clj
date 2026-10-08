@@ -52,7 +52,8 @@
 
     :model/responded
     {:kind :step
-     :text (str/trim (message-text (:message entry)))
+     ;; An agent whose message is code puts the note for the user in :note.
+     :text (str/trim (or (:note entry) (message-text (:message entry))))
      :commands (mapv :command (:actions entry))}
 
     :actions/observed

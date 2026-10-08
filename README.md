@@ -193,6 +193,29 @@ served, for an app that injects a runtime, as video-agent does for
 HyperFrames. A HyperFrames composition with its player is the same idea
 with video-agent's `:ui/player` alias instead of the iframe.
 
+## The REPL agent, an experiment
+
+`rchat.repl` is a second kind of agent on the same runner, after Bret
+Victor's Inventing on Principle: the creation lives in the app's own state,
+the model shapes it with Clojure forms evaluated in this process, and the
+user sees every change the moment it is made, with controls the model
+builds for them. Runner `:step rchat.repl/step`, a text-based model config
+with the prompts `rchat/prompts/repl-system.md` and `repl-task.md`, and
+`rchat.repl/install!` puts the vocabulary into the `user` namespace:
+`(design)` and `(design! assoc :title "Hello")` over the `:design` key of
+the app atom, `(defn design-view [design] ...)` for the hiccup the user
+sees, `:design/set` as the command behind a slider, a color picker or a
+text field, `(set-command! ...)` for commands of the model's own, `(done
+"...")` to hand over. Every result stays bound to `$n`. `example/repl.clj`
+is the whole wiring:
+
+```bash
+cd example && bb -m example.repl        # resources/repl-script.edn plays the model without a key
+```
+
+The hazard is the one of any REPL: a form runs with the full authority of
+the process. For a sandbox that holds nothing but the user's own creation.
+
 ## Images
 
 The agent's environment provides a command that stores an image under

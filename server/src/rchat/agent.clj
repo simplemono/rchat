@@ -47,7 +47,10 @@
                     rchat.scripted (optional)
        :model/query a :model/query effect, for tests (optional)
        :on-wait     (fn [runner]) called when the agent hands over (optional)
-       :after-step  (fn [runner log]) called after every step (optional)}"
+       :after-step  (fn [runner log]) called after every step (optional)
+       :step        (fn [effects log]) the step function over the log, by
+                    default mini-swe-agent's; `rchat.repl/step` is the
+                    REPL agent (optional)}"
   [{:keys [db dir] :as opts}]
   (let [dir (io/file dir)]
     (swap! db update :agent/status #(or % :idle))
@@ -257,7 +260,8 @@
   [{:keys [looks-dir after-step] :as runner} effects]
   (let [log (steer runner (log-of runner))
         api (keyword (get-in (log/config log) [:model :api]))
-        stepped (->> (agent/step effects log)
+        step (or (:step runner) agent/step)
+        stepped (->> (step effects log)
                      (with-attached runner)
                      (#(look/attach % (count log) looks-dir api (now))))]
     (put-log! runner stepped)

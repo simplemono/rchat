@@ -146,6 +146,30 @@ body {
   background: #fff;
 }
 
+/* The creation of the REPL agent: hiccup rendered right here, on a light
+   ground, so that the model's inline styles start from a page. */
+.rchat .design {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font: 16px/1.5 system-ui, sans-serif;
+}
+
+.rchat .design input,
+.rchat .design select,
+.rchat .design button {
+  font: inherit;
+}
+
+.rchat .design label {
+  display: block;
+  margin-top: 8px;
+}
+
 .rchat .canvas-placeholder {
   display: flex;
   flex: 1;

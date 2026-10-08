@@ -10,6 +10,7 @@
                                  rchat.feed-test
                                  rchat.look-test
                                  rchat.markdown-test
+                                 rchat.repl-test
                                  rchat.upload-test
                                  rchat.view-test]]
                 (apply require namespaces)
