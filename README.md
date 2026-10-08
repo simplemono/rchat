@@ -212,6 +212,19 @@ message are the note the user reads; the forms sit behind the tool-call
 row. `example/src/example/main.clj` is the whole wiring, and
 [example/README.md](example/README.md) says what to try.
 
+**Restart.** The log is the only truth, as in a trajectory: every form
+the model evaluated is in it, and the step snapshots the harness beside
+the message (under `:harness`, the model never sees it) whenever it
+changed, after an evaluation and with the user's next message, so the
+user's slider moves are in it too. The runner takes the snapshot from a
+`:harness/snapshot` function of the app, `(fn [] (:design @db))` in the
+example. At start, after `rchat.agent/load!`, `rchat.repl/replay!`
+evaluates again, in order, the definitions, requires and `set-command!`
+calls that ran without error, then restores the last snapshot. Not
+replayed: `sh`, `design!`, `done`, and the `$n` bindings, which the model
+notices as an unbound var and recovers from. A snapshot that would not
+survive EDN, a function in the design, is skipped rather than written.
+
 **Motion.** With `(design! assoc :duration 8)` the creation becomes a
 function of time, `(defn design-view [design t] ...)`, and the pane turns
 into a player with a scrubber. [fnmotion](https://github.com/simplemono/fnmotion)

@@ -122,4 +122,8 @@ chat whenever the agent changes it.
 ## Stopping
 
 Ctrl-C stops the server; the next `bb start` resumes the conversation from
-the log. A stuck one: `fuser -k 8080/tcp`.
+the log and rebuilds the creation from it: the definitions and commands
+the model evaluated, and the design as it was at the last message,
+including what you changed with the controls. It prints how many
+definitions it rebuilt and which failed, if any. A stuck one:
+`fuser -k 8080/tcp`.

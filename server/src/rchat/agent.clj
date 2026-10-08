@@ -50,7 +50,10 @@
        :after-step  (fn [runner log]) called after every step (optional)
        :step        (fn [effects log]) the step function over the log, by
                     default mini-swe-agent's; `rchat.repl/step` is the
-                    REPL agent (optional)}"
+                    REPL agent (optional)
+       :harness/snapshot (fn []) the state of the harness the REPL step
+                    snapshots into the log when it changed, e.g. the
+                    design map, see `rchat.repl/replay!` (optional)}"
   [{:keys [db dir] :as opts}]
   (let [dir (io/file dir)]
     (swap! db update :agent/status #(or % :idle))
@@ -245,6 +248,7 @@
                     (env/execute runner env-config command))
      :user/ask (fn [prompt]
                  (ask! runner prompt))
+     :harness/snapshot (:harness/snapshot runner)
      :clock/now now}))
 
 (defn- with-attached

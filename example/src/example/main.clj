@@ -60,6 +60,7 @@
   (agent/runner (cond-> {:db db
                          :dir (io/file work-dir ".agent")
                          :step repl/step
+                         :harness/snapshot (fn [] (:design @db))
                          :config-fn #(agent/config {:model model
                                                     :cwd work-dir
                                                     :cost-limit 5.0
@@ -266,6 +267,15 @@
                                      (when-let [view-fn (design-view)]
                                        (view-fn (:design @db) t)))}))
   (agent/load! runner)
+  (let [{:keys [replayed failed]} (repl/replay! (:agent/log @db)
+                                                (fn [design]
+                                                  (swap! db assoc :design design)))]
+    (when (or (pos? replayed) (seq failed))
+      (println (str "Rebuilt the creation from the log: " replayed " definitions"
+                    (when (seq failed)
+                      (str ", " (count failed) " failed")))))
+    (doseq [{:keys [command error]} failed]
+      (println " -" (subs command 0 (min 70 (count command))) "…" error)))
   (sse/watch! db)
   (let [port (parse-long (or (System/getenv "PORT") "8080"))
         token (System/getenv "RCHAT_TOKEN")]

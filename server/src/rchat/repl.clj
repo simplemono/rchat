@@ -19,7 +19,8 @@
   Hazard, the same as a REPL: a form runs with the full authority of the
   process. This is for a sandbox that holds nothing but the user's own
   creation."
-  (:require [clojure.java.shell :as shell]
+  (:require [clojure.edn :as edn]
+            [clojure.java.shell :as shell]
             [clojure.pprint :as pp]
             [clojure.string :as str]
             [minisweagent.log :as log]
@@ -74,6 +75,12 @@
   `aliases` and whatever the app adds in `bindings`, e.g. the db atom and
   `design-helpers`."
   [bindings]
+  ;; babashka refers clojure.repl into user: `source`, `doc`, `dir` are
+  ;; names the model reaches for, so they are freed (clojure.repl/doc
+  ;; still works qualified).
+  (doseq [[sym v] (ns-refers 'user)
+          :when (= "clojure.repl" (str (:ns (meta v))))]
+    (ns-unmap 'user sym))
   (binding [*ns* (the-ns 'user)]
     (eval (list* 'require (map #(list 'quote %) aliases))))
   (doseq [[sym value] (merge {'sh sh
@@ -160,6 +167,36 @@
                :when (:evaluated? output)]
            output)))
 
+;;; The harness in the log
+
+(defn- edn-value
+  "`x` when it survives a round trip through EDN, else nil: a snapshot
+  must never make the log unreadable."
+  [x]
+  (try
+    (edn/read-string (pr-str x))
+    x
+    (catch Exception _
+      nil)))
+
+(defn last-harness
+  "The latest snapshot of the harness in the log, or nil."
+  [log]
+  (last (keep :harness log)))
+
+(defn- with-harness
+  "`entry` with the state of the harness under `:harness` when the
+  `:harness/snapshot` effect of the app says it changed since the last
+  snapshot in the log. The snapshot is outside `:message`, so the model
+  never sees it; it is what rebuilds the creation after a restart."
+  [{:keys [harness/snapshot]} log entry]
+  (let [current (when snapshot
+                  (edn-value (snapshot)))]
+    (if (and (some? current)
+             (not= current (last-harness log)))
+      (assoc entry :harness current)
+      entry)))
+
 ;;; The step
 
 (defn- record
@@ -210,7 +247,7 @@
 (defn evaluate
   "Evaluates the pending actions in order, binding each result to `$n`.
   Stops after `done`, whose output carries the handover for the feed."
-  [{:keys [clock/now]} log]
+  [{:keys [clock/now] :as effects} log]
   (let [pending (log/pending-actions log)
         first-n (inc (n-evaluations log))
         done-summary (atom nil)
@@ -257,23 +294,25 @@
                     outputs))
         text (str/join "" (map :output outputs))]
     (record log (now)
-            {:type :actions/observed
-             :message {:role "user"
-                       :content (if (str/blank? text)
-                                  "(no output)"
-                                  text)}
-             :outputs outputs})))
+            (with-harness effects log
+              {:type :actions/observed
+               :message {:role "user"
+                         :content (if (str/blank? text)
+                                    "(no output)"
+                                    text)}
+               :outputs outputs}))))
 
 (defn- submit
   "The model handed over: the next message of the user is the next task."
-  [{:keys [user/ask clock/now]} log]
+  [{:keys [user/ask clock/now] :as effects} log]
   (let [input (ask {:prompt "> "
                     :mode :yolo})]
     (record log (now)
-            {:type :user/interrupted
-             :interrupt-type "UserNewTask"
-             :message {:role "user"
-                       :content (str "The user added a new task: " input)}})))
+            (with-harness effects log
+              {:type :user/interrupted
+               :interrupt-type "UserNewTask"
+               :message {:role "user"
+                         :content (str "The user added a new task: " input)}}))))
 
 (defn step
   "The `:step` of a `rchat.agent/runner`: appends the entries of the next
@@ -311,6 +350,55 @@
          (map :command)
          (filter #(str/starts-with? (str %) prefix))
          (last))))
+
+(def ^:private replayable-re
+  #"^\((def|defn|defn-|defonce|defmacro|defmulti|defmethod|require|set-command!)\s")
+
+(defn- evaluated-actions
+  "Every action of the model with the output its evaluation produced, in
+  order: an `:actions/observed` entry answers the actions of the
+  `:model/responded` entry before it, one output per action."
+  [log]
+  (loop [entries (seq log)
+         pending nil
+         acc []]
+    (if-let [{:keys [type actions outputs]} (first entries)]
+      (case type
+        :model/responded (recur (rest entries) actions acc)
+        :actions/observed (recur (rest entries) nil
+                                 (into acc (map (fn [action output]
+                                                  (assoc action :output output))
+                                                pending outputs)))
+        (recur (rest entries) pending acc))
+      acc)))
+
+(defn- replay-form
+  [command]
+  (let [{:keys [error]} (try
+                          (eval-form (read-string command))
+                          (catch Exception e
+                            {:error e}))]
+    (cond-> {:command command}
+      error (assoc :error (ex-message error)))))
+
+(defn replay!
+  "Rebuilds the creation after a restart, from the log: evaluates again,
+  in order, the definitions, requires and commands the model evaluated
+  without error, then hands the last snapshot of the harness to
+  `restore`, e.g. `(fn [design] (swap! db assoc :design design))`. Forms
+  with effects (`sh`, `design!`, `done`) and the `$n` bindings are not
+  replayed. Returns {:replayed n :failed [{:command :error}]}."
+  [log restore]
+  (let [results (doall
+                 (for [{:keys [command output]} (evaluated-actions log)
+                       :when (and (re-find replayable-re (str command))
+                                  (zero? (:returncode output 1)))]
+                   (replay-form command)))
+        harness (last-harness log)]
+    (when (and restore (some? harness))
+      (restore harness))
+    {:replayed (count (remove :error results))
+     :failed (vec (filter :error results))}))
 
 (comment
   (read-forms "(+ 1 2) ;; a note\n(done \"ok\")")

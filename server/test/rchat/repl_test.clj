@@ -1,5 +1,6 @@
 (ns rchat.repl-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [minisweagent.log :as log]
@@ -79,6 +80,98 @@
         (is (= "Title changed." (log/submission log)))))
     (agent/stop! runner)
     (await-status runner #{:stopped} 5000)))
+
+(def replay-script
+  [(str ";; Build.\n"
+        "(design! assoc :title \"Hello\")\n"
+        "(def pad 12)\n"
+        "(def broken (/ 1 0))\n"
+        "(defn design-view [design] [:h1 {:style {:padding pad}} (:title design)])\n"
+        "(set-command! :design/shout (fn [w] w))\n"
+        "(sh \"true\")")
+   "(done \"Built.\")"
+   ";; Nothing to change.\n(+ 1 1)"
+   "(done \"Nothing changed.\")"
+   "(design! assoc :f (fn [] 1))"
+   "(done \"A function is in the design now.\")"])
+
+(defn- harness-entries
+  [log]
+  (filter :harness log))
+
+(deftest replay-test
+  (let [dir (temp-dir)
+        db (atom {:design {}})
+        commands (atom {})
+        runner (agent/runner {:db db
+                              :dir (io/file dir ".agent")
+                              :step repl/step
+                              :harness/snapshot (fn [] (:design @db))
+                              :model/query (scripted/text-query-fn replay-script)
+                              :config-fn #(agent/config {:model "openrouter/test/model"
+                                                         :cwd dir
+                                                         :text-based? true
+                                                         :system-template (slurp (io/resource "rchat/prompts/repl-system.md"))
+                                                         :instance-template (slurp (io/resource "rchat/prompts/repl-task.md"))})})]
+    (repl/install! (merge (repl/design-helpers db)
+                          {'db db
+                           'set-command! (fn [kind f] (swap! commands assoc kind f) kind)}))
+    (testing "the evaluation snapshots the design into the log, outside the message"
+      (is (true? (agent/send! runner "Build it.")))
+      (is (= :waiting (await-status runner #{:waiting :stopped} 10000)))
+      (let [entries (harness-entries (:agent/log @db))]
+        (is (= 1 (count entries)))
+        (is (= :actions/observed (:type (first entries))))
+        (is (= {:title "Hello"} (:harness (first entries))))
+        (is (not (str/includes? (get-in (first entries) [:message :content]) ":harness")))))
+    (testing "the user's control changes are snapshotted with their next message, an unchanged design is not"
+      (swap! db assoc-in [:design :size] 30)
+      (is (true? (agent/send! runner "Next.")))
+      (let [deadline (+ (System/currentTimeMillis) 10000)]
+        (while (and (not= "Nothing changed." (log/submission (:agent/log @db)))
+                    (< (System/currentTimeMillis) deadline))
+          (Thread/sleep 20)))
+      (is (= :waiting (await-status runner #{:waiting :stopped} 5000)))
+      (let [entries (harness-entries (:agent/log @db))]
+        (is (= 2 (count entries)))
+        (is (= :user/interrupted (:type (second entries))))
+        (is (= {:title "Hello" :size 30} (:harness (second entries))))))
+    (testing "a design that does not survive EDN is not snapshotted, the log stays readable"
+      (is (true? (agent/send! runner "Put a function in.")))
+      (let [deadline (+ (System/currentTimeMillis) 10000)]
+        (while (and (not= "A function is in the design now." (log/submission (:agent/log @db)))
+                    (< (System/currentTimeMillis) deadline))
+          (Thread/sleep 20)))
+      (is (= :waiting (await-status runner #{:waiting :stopped} 5000)))
+      (is (fn? (get-in @db [:design :f])))
+      (is (= 2 (count (harness-entries (:agent/log @db)))))
+      (is (vector? (edn/read-string (slurp (io/file dir ".agent" "log.edn"))))))
+    (agent/stop! runner)
+    (await-status runner #{:stopped} 5000)
+    (testing "after a restart, replay! rebuilds what ran without error and restores the last snapshot"
+      (let [log (:agent/log @db)]
+        (doseq [sym '[pad broken design-view]]
+          (ns-unmap 'user sym))
+        (reset! db {:design {}})
+        (reset! commands {})
+        (let [{:keys [replayed failed]} (repl/replay! log (fn [design] (swap! db assoc :design design)))]
+          (is (= 3 replayed))
+          (is (= [] failed)))
+        (is (= 12 @(ns-resolve 'user 'pad)))
+        (is (nil? (ns-resolve 'user 'broken)))
+        (is (= [:h1 {:style {:padding 12}} "Hello"] (@(ns-resolve 'user 'design-view) {:title "Hello"})))
+        (is (fn? (:design/shout @commands)))
+        (is (= {:title "Hello" :size 30} (:design @db)))))
+    (testing "an empty log replays nothing"
+      (is (= {:replayed 0 :failed []} (repl/replay! nil nil))))))
+
+(deftest install-frees-clojure-repl-names-test
+  (repl/install! {})
+  (testing "source, doc and dir are the model's to define"
+    (is (= 1 (binding [*ns* (the-ns 'user)]
+               (eval '(do (def source 1) source)))))
+    (is (= 2 (binding [*ns* (the-ns 'user)]
+               (eval '(do (def doc 2) doc)))))))
 
 (deftest note-test
   (is (= "A heading with a slider.\nAnd a color." (repl/note ";; A heading with a slider.\n(+ 1 2)\n; And a color.\n(done \"x\")")))
