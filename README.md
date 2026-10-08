@@ -223,6 +223,26 @@ the server. Design edits still go through `:design/set`, and a control
 inside a frame works like one anywhere else. The client module therefore
 carries SCI and fnmotion.
 
+**Server-side motion, measured.** `RCHAT_MOTION=server` is the other way
+to play a motion design: `t` lives in the app atom, a server tick pushes
+a page frame per step past rframes' coalescing, scrubber and play are
+commands, and the browser carries neither SCI nor fnmotion. Measured on
+2026-10-08 on one laptop with the scripted six-second clip
+(`RCHAT_MOTION=server bb -m example.bench` for the first two lines):
+
+| | server-side | in the browser |
+|---|---|---|
+| render + encode per frame (babashka) | 0.30 ms, 2% of a core at 60 fps | |
+| bytes per frame on the wire | 47 (transit 2.4 kB, gzip against the previous frame) | 0 |
+| frames per second played | 55, at 7 to 13% of a core | 53 (the display's refresh) |
+| scrub latency, localhost | 12 to 20 ms (120 to 130 ms with the 100 ms coalescing) | 1 to 3 ms |
+| scrub latency, remote | plus one round trip: ~40 ms to a Hetzner cell from here, more on a phone | unchanged |
+| audio in sync with the frame | no | yes |
+| server cost while someone watches | one tick loop per viewer | none |
+
+The push side is cheap; the round trip and audio are what keep the
+browser mode the default.
+
 The hazard is the one of any REPL: a form runs with the full authority of
 the process. For a sandbox that holds nothing but the user's own creation.
 The bash agent (`rchat.agent` with its default step) stays the choice for
