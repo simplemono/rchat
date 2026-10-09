@@ -284,6 +284,7 @@ bb start                             # http://localhost:8080, the REPL agent; co
 bb bash                              # the bash agent with the canvas
 OPENROUTER_API_KEY=... bb start      # GPT-6.1 Sol, RCHAT_MODEL picks another; a .env in example/ works too
 RCHAT_TOKEN=s3cret bb start          # prints the link
+bb deploy harry                      # the same as a service on a sprites.dev sprite, see example/README.md
 ```
 
 ## Tests

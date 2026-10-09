@@ -2,6 +2,8 @@
 ;; bb bash    the bash agent with the canvas
 ;; bb build   compile the browser bundle (needs a JVM)
 ;; bb bench   what a server-pushed frame costs
+;; bb jar     the example as one uberjar for babashka, target/rchat.jar
+;; bb deploy <sprite>   the jar as a service on a sprites.dev sprite
 ;;
 ;; This file is EDN: no #(...) and no #"..." in here.
 {:paths ["src" "resources"]
@@ -74,4 +76,47 @@
 
   bench
   {:doc "Renders the scripted clip 600 times the way the server pushes it and prints the cost per frame."
-   :task (shell {:extra-env {"RCHAT_MOTION" "server"}} "bb" "-m" "example.bench")}}}
+   :task (shell {:extra-env {"RCHAT_MOTION" "server"}} "bb" "-m" "example.bench")}
+
+  jar
+  {:doc "The example and all its dependencies as target/rchat.jar, run with `bb target/rchat.jar`. Compiles the bundle first when stale."
+   :task (do
+           (when (stale?)
+             (run 'build))
+           (fs/create-dirs "target")
+           (shell "bb" "uberjar" "target/rchat.jar" "-m" "example.main")
+           (println (str "target/rchat.jar, " (quot (fs/size "target/rchat.jar") 1024) " kB")))}
+
+  deploy
+  {:doc "bb deploy <sprite>: the jar as the service `rchat` behind the sprite's URL. First time: installs babashka, pushes deploy/start.sh and the local .env (never over one on the sprite)."
+   :task (let [sprite (or (first *command-line-args*)
+                          (do (println "Which sprite? bb deploy <name>")
+                              (System/exit 1)))
+                remote (fn [script]
+                         (str/trim (:out (shell {:out :string} "sprite" "exec" "-s" sprite "--" "bash" "-c" script))))
+                push (fn [local remote-path]
+                       (shell "sprite" "file" "push" "-s" sprite local remote-path))]
+            (run 'jar)
+            (println "Preparing" sprite)
+            (remote "mkdir -p ~/rchat/work ~/.local/bin; if [ ! -x ~/.local/bin/bb ]; then cd ~ && curl -sLO https://raw.githubusercontent.com/babashka/babashka/master/install && chmod +x install && ./install --dir ~/.local/bin >/dev/null && rm -f install; fi; ~/.local/bin/bb --version")
+            (push "deploy/start.sh" "/home/sprite/rchat/start.sh")
+            (remote "chmod 700 ~/rchat/start.sh")
+            (cond
+              (= "yes" (remote "test -f ~/rchat/.env && echo yes || echo no"))
+              (println "The sprite has its .env, kept.")
+
+              (fs/exists? ".env")
+              (do (push ".env" "/home/sprite/rchat/.env")
+                  (remote "chmod 600 ~/rchat/.env")
+                  (println "Pushed the local .env."))
+
+              :else
+              (println "No .env here or on the sprite: the agent starts without an API key. Put OPENROUTER_API_KEY=... into /home/sprite/rchat/.env on the sprite."))
+            (push "target/rchat.jar" "/home/sprite/rchat/rchat.jar")
+            (if (str/includes? (remote "sprite-env services list") "\"name\":\"rchat\"")
+              (do (remote "sprite-env services restart rchat")
+                  (println "Restarted the service rchat."))
+              (do (remote "sprite-env services create rchat --cmd /home/sprite/rchat/start.sh --dir /home/sprite/rchat --http-port 8080 --no-stream")
+                  (println "Created the service rchat.")))
+            (println (remote "sleep 3; curl -s -o /dev/null -w 'The page answers %{http_code} on the sprite. ' http://127.0.0.1:8080/; tail -1 /.sprite/logs/services/rchat.log"))
+            (shell "sprite" "info" "-s" sprite))}}}

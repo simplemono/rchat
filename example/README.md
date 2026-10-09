@@ -119,6 +119,36 @@ Then "make the headline bigger", "use a cooler palette", "add a photo
 placeholder". The page in `./work/canvas/index.html` reloads beside the
 chat whenever the agent changes it.
 
+## On a sprite
+
+[sprites.dev](https://sprites.dev) gives a persistent Linux VM with a URL.
+`bb deploy <sprite>` puts the example there as the service `rchat` behind
+that URL:
+
+```bash
+sprite create harry --skip-console   # once
+echo 'OPENROUTER_API_KEY=...' > .env  # once, pushed on the first deploy
+bb deploy harry                       # every time: jar, push, restart
+```
+
+What it does: `bb jar` packs the example and its dependencies into
+`target/rchat.jar` (2.6 MB, runs with `bb target/rchat.jar`, no Java and
+no dependency download on the sprite), installs babashka into the sprite
+user's `~/.local/bin` if missing, pushes `deploy/start.sh` and, when the
+sprite has none yet, the local `.env`, pushes the jar, then creates the
+service (`sprite-env services create rchat --http-port 8080`) or restarts
+it. Everything lives under `/home/sprite/rchat`, the log and the creations
+in `work/` there, so a redeploy keeps the conversation and the restart
+rebuilds the creation as described above. About 15 seconds.
+
+The URL (`sprite info -s harry`) is behind the sprite's own login by
+default, your Fly org only. For someone outside, `sprite config update
+--url-auth public` and `RCHAT_TOKEN=...` in the `.env` on the sprite, so the
+link the service prints in its log is the key. The service keeps the
+sprite awake, so it is billed while it runs; `sprite-env services stop
+rchat` lets the sprite pause and the URL proxy starts the service again on
+the next request.
+
 ## Stopping
 
 Ctrl-C stops the server; the next `bb start` resumes the conversation from
