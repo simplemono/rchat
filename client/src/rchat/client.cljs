@@ -10,8 +10,14 @@
                      :ui/upload-url \"/upload\"
                      :ui/send [[:data/command ...]]
                      :ui/send-label \"Send\"
+                     :ui/attach-title \"Attach an image, or paste one into the text\"
+                     :ui/remove-title \"Remove\"
                      :ui/disabled? false
                      :placeholder \"...\"}]
+
+  The labels and the titles (the tooltips of the attach button and of the
+  remove button on an attachment) are the server's to word, English when
+  absent.
 
   Enter sends on a keyboard, Shift+Enter breaks the line. On a touch
   device Enter breaks the line and the button sends, like every chat app
@@ -108,7 +114,7 @@
        (remove nil?)))
 
 (defn- attachments-view
-  [store attachments-key attachments]
+  [store attachments-key attachments remove-title]
   (when (seq attachments)
     [:div.attachments
      (for [{:keys [name url]} attachments]
@@ -116,7 +122,7 @@
         [:img {:src url
                :alt "attached image"}]
         [:button.remove {:type "button"
-                         :title "Remove"
+                         :title (or remove-title "Remove")
                          :on {:click (fn [_event]
                                        (swap! store update attachments-key
                                               (fn [attachments]
@@ -124,7 +130,8 @@
          "×"]])]))
 
 (defn composer
-  [{:keys [ui/store-key ui/attachments-key ui/upload-url ui/send ui/send-label ui/disabled? ui/state]
+  [{:keys [ui/store-key ui/attachments-key ui/upload-url ui/send ui/send-label
+           ui/attach-title ui/remove-title ui/disabled? ui/state]
     :as attrs}
    _children]
   (let [store state/store
@@ -140,11 +147,11 @@
                 (when ready?
                   (state/dispatch! send)))]
     [:div.composer-input
-     (attachments-view store attachments-key attachments)
+     (attachments-view store attachments-key attachments remove-title)
      [:div.row
       [:textarea
        (-> (dissoc attrs :ui/store-key :ui/attachments-key :ui/upload-url :ui/send
-                   :ui/send-label :ui/disabled? :ui/state)
+                   :ui/send-label :ui/attach-title :ui/remove-title :ui/disabled? :ui/state)
            (assoc :value draft
                   :disabled (boolean disabled?)
                   :on {:input [[:store/assoc store-key :event/target.value]]
@@ -166,7 +173,7 @@
                                              (not (coarse-pointer?)))
                                     (.preventDefault event)
                                     (send!)))}))]
-      [:label.attach {:title "Attach an image, or paste one into the text"}
+      [:label.attach {:title (or attach-title "Attach an image, or paste one into the text")}
        "📎"
        [:input {:type "file"
                 :accept "image/*"
@@ -214,15 +221,16 @@
 (defn canvas
   "The creation of the agent: an iframe over the page the server names.
   A new `:ui/rev` changes the src and reloads the page at the position the
-  user was looking at; everything else Replicant leaves alone."
-  [{:keys [ui/src ui/rev]} _children]
+  user was looking at; everything else Replicant leaves alone. `:ui/title`
+  is the title of the iframe, \"Your creation\" when absent."
+  [{:keys [ui/src ui/rev ui/title]} _children]
   (let [src (str src "?rev=" rev)]
     (when (and @canvas-src* (not= src @canvas-src*))
       (reset! canvas-scroll* (canvas-scroll)))
     (reset! canvas-src* src)
     [:iframe.canvas {:replicant/key "canvas"
                      :src src
-                     :title "Your creation"
+                     :title (or title "Your creation")
                      :replicant/on-mount (fn [{:keys [replicant/node]}]
                                            (reset! canvas-node* node)
                                            (.addEventListener ^js node "load" restore-canvas-scroll!))
